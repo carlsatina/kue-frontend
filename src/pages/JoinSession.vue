@@ -100,12 +100,23 @@ const joinedPlayersWithOrder = computed(() => {
   });
 });
 
+function setPageTitle(name) {
+  const title = name ? `Join Session • ${name}` : "Join Session";
+  document.title = title;
+  const og = document.querySelector('meta[property="og:title"]');
+  if (og) og.setAttribute("content", title);
+  const twitter = document.querySelector('meta[name="twitter:title"]');
+  if (twitter) twitter.setAttribute("content", title);
+}
+
 async function load() {
   try {
     const data = await api.publicSessionInvite(route.params.token);
     session.value = data.session;
+    setPageTitle(session.value?.name);
   } catch (err) {
     error.value = err.message || "Unable to load session";
+    setPageTitle("");
   } finally {
     loading.value = false;
   }

@@ -625,15 +625,26 @@ function getTeamEntry(stats, memberIds, nameMap) {
   return entry;
 }
 
+function setPageTitle(name) {
+  const title = name ? `Live Queue • ${name}` : "Live Queue";
+  document.title = title;
+  const og = document.querySelector('meta[property="og:title"]');
+  if (og) og.setAttribute("content", title);
+  const twitter = document.querySelector('meta[name="twitter:title"]');
+  if (twitter) twitter.setAttribute("content", title);
+}
+
 async function load() {
   try {
     data.value = await api.publicQueue(route.params.token);
+    setPageTitle(data.value?.session?.name);
     const defaultType = data.value?.session?.defaultBracketType;
     if (defaultType) {
       bracketType.value = defaultType;
     }
   } catch {
     data.value = {};
+    setPageTitle("");
   }
 
   try {
