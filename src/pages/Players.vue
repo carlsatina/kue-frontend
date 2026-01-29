@@ -108,6 +108,13 @@
               <div class="inline-actions">
                 <button class="button button-compact" :disabled="!canAdd" @click="addToQueue">Add to Queue</button>
                 <button
+                  class="button secondary button-compact"
+                  :disabled="!canAutoQueue"
+                  @click="autoQueueIdle"
+                >
+                  Auto Queue
+                </button>
+                <button
                   v-if="showMarkPresent"
                   class="button secondary button-compact"
                   :disabled="selectedIds.length === 0 || !sessionIsOpen"
@@ -585,6 +592,12 @@ const editResultScoreB = ref("");
 const editResultError = ref("");
 
 const skillLevels = ["Beginner", "Intermediate", "Advance", "Elite"];
+const skillRank = new Map([
+  ["Beginner", 1],
+  ["Intermediate", 2],
+  ["Advance", 3],
+  ["Elite", 4]
+]);
 
 const sessionGameType = computed(() => {
   const raw = session.value?.gameType || "doubles";
@@ -732,6 +745,37 @@ const filteredPlayers = computed(() => {
 });
 
 const canAdd = computed(() => selectedIds.value.length === selectionLimit.value && session.value && sessionIsOpen.value);
+const idleCandidates = computed(() => {
+  if (!session.value) return [];
+  const now = nowTick.value;
+  return sessionPlayers.value
+    .filter((sp) => sp?.player)
+    .filter((sp) => {
+      if (sp.status !== "checked_in" && sp.status !== "ready") return false;
+      if (!sp.lastPlayedAt) return false;
+      if (playingIds.value.has(sp.playerId) || queuedIds.value.has(sp.playerId)) return false;
+      return true;
+    })
+    .map((sp) => {
+      const idleMs = Math.max(0, now - new Date(sp.lastPlayedAt).getTime());
+      return {
+        id: sp.playerId,
+        player: sp.player,
+        skill: skillRank.get(sp.player?.skillLevel) ?? 2,
+        idleMs,
+        idleSeconds: Math.floor(idleMs / 1000)
+      };
+    })
+    .sort((a, b) => {
+      if (b.idleMs !== a.idleMs) return b.idleMs - a.idleMs;
+      const aName = a.player.nickname || a.player.fullName || "";
+      const bName = b.player.nickname || b.player.fullName || "";
+      return aName.localeCompare(bName, undefined, { sensitivity: "base" });
+    });
+});
+const canAutoQueue = computed(
+  () => session.value && sessionIsOpen.value && idleCandidates.value.length >= selectionLimit.value
+);
 const canAddTeams = computed(
   () =>
     session.value &&
@@ -1034,6 +1078,80 @@ function teamKey(ids) {
   return ids.slice().sort().join("+");
 }
 
+function allSameIdle(candidates) {
+  if (!candidates.length) return false;
+  const baseline = candidates[0].idleSeconds ?? 0;
+  return candidates.every((candidate) => (candidate.idleSeconds ?? 0) === baseline);
+}
+
+function pickIdleSelection(candidates, needed) {
+  if (candidates.length < needed) return [];
+  if (needed !== 4) return candidates.slice(0, needed);
+  const top = candidates.slice(0, needed);
+  if (!allSameIdle(top)) return top;
+  const topIdle = top[0]?.idleSeconds ?? 0;
+  let best = null;
+  let bestRange = Number.POSITIVE_INFINITY;
+  let bestMinIdle = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i <= candidates.length - needed; i += 1) {
+    const window = candidates.slice(i, i + needed);
+    const maxIdle = window[0].idleSeconds ?? 0;
+    if (maxIdle !== topIdle) continue;
+    const minIdle = window[window.length - 1].idleSeconds ?? 0;
+    const range = maxIdle - minIdle;
+    if (range === 0) continue;
+    if (range < bestRange || (range === bestRange && minIdle > bestMinIdle)) {
+      best = window;
+      bestRange = range;
+      bestMinIdle = minIdle;
+    }
+  }
+  return best || [];
+}
+
+function buildBalancedDoublesOrder(candidates) {
+  if (candidates.length !== 4) return candidates.map((candidate) => candidate.id);
+  const ids = candidates.map((candidate) => candidate.id);
+  const skills = candidates.map((candidate) => candidate.skill);
+  const idleTimes = candidates.map((candidate) => candidate.idleSeconds ?? 0);
+  const pairings = [
+    [
+      [0, 1],
+      [2, 3]
+    ],
+    [
+      [0, 2],
+      [1, 3]
+    ],
+    [
+      [0, 3],
+      [1, 2]
+    ]
+  ];
+  let best = pairings[0];
+  let bestDiff = Number.POSITIVE_INFINITY;
+  let bestMix = Number.NEGATIVE_INFINITY;
+  pairings.forEach((pairing) => {
+    const [[a1, a2], [b1, b2]] = pairing;
+    const sumA = skills[a1] + skills[a2];
+    const sumB = skills[b1] + skills[b2];
+    const diff = Math.abs(sumA - sumB);
+    const mix = Math.abs(skills[a1] - skills[a2]) + Math.abs(skills[b1] - skills[b2]);
+    if (diff < bestDiff || (diff === bestDiff && mix > bestMix)) {
+      best = pairing;
+      bestDiff = diff;
+      bestMix = mix;
+    }
+  });
+  const [[a1, a2], [b1, b2]] = best;
+  const idleA = idleTimes[a1] + idleTimes[a2];
+  const idleB = idleTimes[b1] + idleTimes[b2];
+  if (idleB > idleA) {
+    return [ids[b1], ids[b2], ids[a1], ids[a2]];
+  }
+  return [ids[a1], ids[a2], ids[b1], ids[b2]];
+}
+
 async function load() {
   players.value = await api.listPlayers();
   let currentSession = null;
@@ -1125,6 +1243,36 @@ async function addToQueue() {
       return;
     }
     await attemptQueue(selectedIds.value);
+  } catch (err) {
+    queueError.value = err.message || "Unable to add to queue";
+  }
+}
+
+async function autoQueueIdle() {
+  if (!session.value || !sessionIsOpen.value) {
+    queueError.value = "Session is not open.";
+    return;
+  }
+  queueError.value = "";
+  removeError.value = "";
+  presentError.value = "";
+  const needed = selectionLimit.value;
+  if (idleCandidates.value.length < needed) {
+    queueError.value = `Need ${needed} idle players to auto queue.`;
+    return;
+  }
+  const selected = pickIdleSelection(idleCandidates.value, needed);
+  if (selected.length < needed) {
+    queueError.value = "Idle times are identical for available players. Select manually or wait for variation.";
+    return;
+  }
+  const order =
+    sessionGameType.value === "doubles" && selected.length === 4
+      ? buildBalancedDoublesOrder(selected)
+      : selected.map((candidate) => candidate.id);
+  try {
+    selectedIds.value = order;
+    await addToQueue();
   } catch (err) {
     queueError.value = err.message || "Unable to add to queue";
   }
