@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Kue</string>
+    <string name="title_activity_main">Kue</string>
+    <string name="package_name">com.arshii.kue</string>
+    <string name="custom_url_scheme">com.arshii.kue</string>
+</resources>
