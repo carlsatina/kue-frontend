@@ -10,7 +10,8 @@ import PublicBoard from "./pages/PublicBoard.vue";
 import PublicQueue from "./pages/PublicQueue.vue";
 import JoinSession from "./pages/JoinSession.vue";
 import Tournament from "./pages/Tournament.vue";
-import TeamBuilder from "./pages/TeamBuilder.vue";
+import Pairing from "./pages/Pairing.vue";
+import Teams from "./pages/Teams.vue";
 import Profile from "./pages/Profile.vue";
 import CheckEmail from "./pages/CheckEmail.vue";
 import VerifyEmail from "./pages/VerifyEmail.vue";
@@ -32,7 +33,9 @@ const routes = [
   { path: "/players", component: Players },
   { path: "/rankings", component: Rankings },
   { path: "/tournament", component: Tournament },
-  { path: "/team-builder", component: TeamBuilder },
+  { path: "/pairing", component: Pairing },
+  { path: "/team-builder", redirect: "/pairing" },
+  { path: "/teams", component: Teams },
   { path: "/fees", component: Fees },
   { path: "/profile", component: Profile }
 ];

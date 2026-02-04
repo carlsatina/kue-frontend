@@ -1,12 +1,12 @@
 <template>
-  <div class="app-shell" :class="{ 'bracket-shell': route.path === '/tournament' || route.path === '/team-builder' }">
+  <div class="app-shell" :class="{ 'bracket-shell': route.path === '/tournament' || route.path === '/pairing' }">
     <header class="header">
       <div class="brand">
         <h1 class="title">Kue</h1>
         <div class="subtitle">Sassy court control. Fast queues. Instant hype.</div>
       </div>
       <div v-if="showNav" class="header-center">
-        <nav class="nav nav-5">
+        <nav class="nav nav-6">
           <router-link to="/" class="nav-item">
             <span class="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" role="img">
@@ -25,6 +25,17 @@
               </svg>
             </span>
             <span class="nav-label">Players</span>
+          </router-link>
+          <router-link to="/teams" class="nav-item">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" role="img">
+                <circle cx="7.5" cy="9" r="2.5"></circle>
+                <circle cx="16.5" cy="9" r="2.5"></circle>
+                <path d="M2.5 19c0-2.6 2.2-4.6 5-4.6s5 2 5 4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                <path d="M11.5 19c0-2.6 2.2-4.6 5-4.6s5 2 5 4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+              </svg>
+            </span>
+            <span class="nav-label">Teams</span>
           </router-link>
           <router-link to="/rankings" class="nav-item">
             <span class="nav-icon" aria-hidden="true">

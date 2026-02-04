@@ -108,15 +108,18 @@
   </div>
 
   <div v-if="showRankingsModal" class="modal-backdrop">
-    <div class="modal-card rank-modal">
-      <div class="rank-modal-head">
+    <div class="modal-card rank-modal rank-board">
+      <div class="rank-hero">
         <div>
           <div class="subtitle">Current session</div>
-          <h3>Rankings</h3>
+          <div class="rank-title">{{ rankTitle }}</div>
         </div>
-        <span class="queue-section-badge">{{ totalCount }} {{ summaryLabel }}</span>
+        <div class="rank-hero-meta">
+          <div class="rank-chip">{{ data.session?.name || "Session" }}</div>
+          <div class="rank-chip">{{ totalCount }} {{ summaryLabel }}</div>
+        </div>
       </div>
-      <div v-if="showTeamToggle" class="segmented rank-toggle">
+      <div v-if="showPairToggle || showTeamToggle" class="segmented rank-toggle">
         <button
           class="segment"
           :class="{ active: rankMode === 'players' }"
@@ -127,32 +130,74 @@
         </button>
         <button
           class="segment"
+          :class="{ active: rankMode === 'pairs' }"
+          type="button"
+          @click="rankMode = 'pairs'"
+          v-if="showPairToggle"
+        >
+          Pairs
+        </button>
+        <button
+          class="segment"
           :class="{ active: rankMode === 'teams' }"
           type="button"
           @click="rankMode = 'teams'"
+          v-if="showTeamToggle"
         >
           Teams
         </button>
       </div>
-      <div v-if="teamRankLoading && isTeamView" class="subtitle">Loading teams…</div>
+      <div v-if="pairRankLoading && isPairView" class="subtitle">Loading pairs…</div>
+      <div v-else-if="teamRankLoading && isTeamView" class="subtitle">Loading teams…</div>
       <div v-else-if="rankedRows.length === 0" class="subtitle">No stats yet.</div>
-      <div v-else class="rank-modal-body">
-        <div v-for="row in rankedRows" :key="row.id" class="rank-row">
-          <div class="rank-row-left">
-            <div class="rank-row-badge" :class="rankClass(row.rank)">
+      <template v-else>
+        <div class="rank-podium">
+          <div
+            v-for="(row, idx) in podiumRows"
+            :key="row.id"
+            class="rank-podium-card"
+            :class="`podium-${rankClass(row.rank)}`"
+            :style="{ animationDelay: `${idx * 80}ms` }"
+          >
+            <div class="rank-corner-icon">{{ rankCornerIcon(row.rank) }}</div>
+            <div class="rank-medal">
               <span class="rank-number">{{ row.rank }}</span>
             </div>
-            <div class="rank-row-name">{{ row.name }}</div>
-          </div>
-          <div class="rank-row-icon">{{ rankCornerIcon(row.rank) }}</div>
-          <div class="rank-row-stats">
-            <span class="rank-pill">GP {{ row.gamesPlayed }}</span>
-            <span class="rank-pill win">W {{ row.wins }}</span>
-            <span class="rank-pill loss">L {{ row.losses }}</span>
-            <span class="rank-pill pct">{{ winPct(row.winPct) }}</span>
+            <div class="rank-name">{{ row.name }}</div>
+            <div class="rank-mini-stats">
+              <span>GP {{ row.gamesPlayed }}</span>
+              <span>W {{ row.wins }}</span>
+              <span>L {{ row.losses }}</span>
+              <span v-if="isTeamView">Pts {{ row.points }}</span>
+              <span v-else>{{ winPct(row.winPct) }}</span>
+            </div>
           </div>
         </div>
-      </div>
+
+        <div class="rank-list rank-modal-body">
+          <div
+            v-for="(row, idx) in restRows"
+            :key="row.id"
+            class="rank-row"
+            :style="{ animationDelay: `${(idx + 3) * 40}ms` }"
+          >
+            <div class="rank-row-left">
+              <div class="rank-row-badge" :class="rankClass(row.rank)">
+                <span class="rank-number">{{ row.rank }}</span>
+              </div>
+              <div class="rank-row-name">{{ row.name }}</div>
+            </div>
+            <div class="rank-row-icon">{{ rankCornerIcon(row.rank) }}</div>
+            <div class="rank-row-stats">
+              <span class="rank-pill">GP {{ row.gamesPlayed }}</span>
+              <span class="rank-pill win">W {{ row.wins }}</span>
+              <span class="rank-pill loss">L {{ row.losses }}</span>
+              <span v-if="isTeamView" class="rank-pill pct">Pts {{ row.points }}</span>
+              <span v-else class="rank-pill pct">{{ winPct(row.winPct) }}</span>
+            </div>
+          </div>
+        </div>
+      </template>
       <button class="button" @click="closeRankings">Close</button>
     </div>
   </div>
@@ -257,7 +302,9 @@ const data = ref({});
 const rankedPlayers = ref([]);
 const totalPlayers = ref(0);
 const rankMode = ref("players");
-const teamRankMatches = ref([]);
+const pairRankMatches = ref([]);
+const pairRankLoading = ref(false);
+const teamStats = ref([]);
 const teamRankLoading = ref(false);
 const startY = ref(0);
 const isPulling = ref(false);
@@ -382,13 +429,32 @@ const queueMatches = computed(() => {
   return matches;
 });
 
-const showTeamToggle = computed(() => data.value?.session?.gameType === "doubles");
+const showPairToggle = computed(() => data.value?.session?.gameType === "doubles");
+const showTeamToggle = computed(() => data.value?.session?.mode === "tournament");
+const isPairView = computed(() => rankMode.value === "pairs" && showPairToggle.value);
 const isTeamView = computed(() => rankMode.value === "teams" && showTeamToggle.value);
-const rankedRows = computed(() =>
-  isTeamView.value ? buildTeamRankings(teamRankMatches.value) : buildPlayerRows(rankedPlayers.value)
-);
-const totalCount = computed(() => (isTeamView.value ? rankedRows.value.length : totalPlayers.value));
-const summaryLabel = computed(() => (isTeamView.value ? "teams" : "players"));
+const rankedRows = computed(() => {
+  if (isTeamView.value) return teamStats.value;
+  if (isPairView.value) return buildPairRankings(pairRankMatches.value);
+  return buildPlayerRows(rankedPlayers.value);
+});
+const podiumRows = computed(() => rankedRows.value.slice(0, 3));
+const restRows = computed(() => rankedRows.value.slice(3));
+const totalCount = computed(() => {
+  if (isTeamView.value) return rankedRows.value.length;
+  if (isPairView.value) return rankedRows.value.length;
+  return totalPlayers.value;
+});
+const summaryLabel = computed(() => {
+  if (isTeamView.value) return "teams";
+  if (isPairView.value) return "pairs";
+  return "players";
+});
+const rankTitle = computed(() => {
+  if (isTeamView.value) return "Top Teams";
+  if (isPairView.value) return "Top Pairs";
+  return "Top Players";
+});
 
 function teamLabel(match, teamNumber) {
   return match.participants
@@ -461,7 +527,7 @@ function buildPlayerRows(players) {
   }));
 }
 
-function buildTeamRankings(history) {
+function buildPairRankings(history) {
   const stats = new Map();
   const nameMap = new Map();
   (history || []).forEach((match) => {
@@ -659,8 +725,11 @@ async function load() {
 
 function openRankings() {
   showRankingsModal.value = true;
-  if (isTeamView.value) {
-    loadTeamRankMatches();
+  if (showPairToggle.value) {
+    loadPairRankMatches();
+  }
+  if (showTeamToggle.value) {
+    loadTeamStats();
   }
 }
 
@@ -668,14 +737,27 @@ function closeRankings() {
   showRankingsModal.value = false;
 }
 
-async function loadTeamRankMatches() {
+async function loadPairRankMatches() {
+  if (!showPairToggle.value) return;
+  pairRankLoading.value = true;
+  try {
+    const result = await api.publicQueueBracket(route.params.token);
+    pairRankMatches.value = result.matches || [];
+  } catch {
+    pairRankMatches.value = [];
+  } finally {
+    pairRankLoading.value = false;
+  }
+}
+
+async function loadTeamStats() {
   if (!showTeamToggle.value) return;
   teamRankLoading.value = true;
   try {
-    const result = await api.publicQueueBracket(route.params.token);
-    teamRankMatches.value = result.matches || [];
+    const result = await api.publicQueueTeamStats(route.params.token);
+    teamStats.value = result.teams || [];
   } catch {
-    teamRankMatches.value = [];
+    teamStats.value = [];
   } finally {
     teamRankLoading.value = false;
   }
@@ -1020,15 +1102,27 @@ function teamKey(ids) {
 }
 
 watch(rankMode, (next) => {
+  if (next === "pairs" && showPairToggle.value) {
+    loadPairRankMatches();
+  }
   if (next === "teams" && showTeamToggle.value) {
-    loadTeamRankMatches();
+    loadTeamStats();
   }
 });
 
 watch(
   () => data.value?.session?.gameType,
   (gameType) => {
-    if (gameType !== "doubles") {
+    if (gameType !== "doubles" && rankMode.value === "pairs") {
+      rankMode.value = "players";
+    }
+  }
+);
+
+watch(
+  () => data.value?.session?.mode,
+  (mode) => {
+    if (mode !== "tournament" && rankMode.value === "teams") {
       rankMode.value = "players";
     }
   }

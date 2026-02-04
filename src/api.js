@@ -58,6 +58,12 @@ export const api = {
   updateCourt: (id, payload) => request(`/courts/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   deleteCourt: (id) => request(`/courts/${id}`, { method: "DELETE" }),
   setCourtStatus: (id, payload) => request(`/courts/${id}/status`, { method: "POST", body: JSON.stringify(payload) }),
+  listTeams: () => request("/teams"),
+  createTeam: (payload) => request("/teams", { method: "POST", body: JSON.stringify(payload) }),
+  updateTeam: (id, payload) => request(`/teams/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  deleteTeam: (id) => request(`/teams/${id}`, { method: "DELETE" }),
+  updateTeamMembers: (id, payload) =>
+    request(`/teams/${id}/members`, { method: "POST", body: JSON.stringify(payload) }),
   listPlayers: () => request("/players"),
   createPlayer: (payload) => request("/players", { method: "POST", body: JSON.stringify(payload) }),
   updatePlayer: (id, payload) => request(`/players/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
@@ -76,6 +82,10 @@ export const api = {
   cancelMatch: (sessionId, payload) => request(`/matches/${sessionId}/cancel`, { method: "POST", body: JSON.stringify(payload) }),
   getMatch: (id) => request(`/matches/${id}`),
   matchHistory: (sessionId) => request(`/matches/${sessionId}/history`),
+  teamStats: (sessionId, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/sessions/${sessionId}/team-stats${query ? `?${query}` : ""}`);
+  },
   balances: (sessionId) => request(`/payments/${sessionId}/balances`),
   recordPayment: (sessionId, payload) => request(`/payments/${sessionId}`, { method: "POST", body: JSON.stringify(payload) }),
   createShareLink: (sessionId, payload) => request(`/share-links/${sessionId}`, { method: "POST", body: JSON.stringify(payload) }),
@@ -85,6 +95,7 @@ export const api = {
   publicPlayer: (token) => fetch(`${API_URL}/public/player/${token}`).then((r) => r.json()),
   publicQueue: (token) => fetch(`${API_URL}/public/queue/${token}`).then((r) => r.json()),
   publicQueueRankings: (token) => fetch(`${API_URL}/public/queue/${token}/rankings`).then((r) => r.json()),
+  publicQueueTeamStats: (token) => fetch(`${API_URL}/public/queue/${token}/team-stats`).then((r) => r.json()),
   publicQueueBracket: (token) => fetch(`${API_URL}/public/queue/${token}/bracket`).then((r) => r.json()),
   publicSessionInvite: (token) => fetch(`${API_URL}/public/session-invite/${token}`).then((r) => r.json()),
   publicSessionInvitePlayers: (token) => fetch(`${API_URL}/public/session-invite/${token}/players`).then((r) => r.json()),

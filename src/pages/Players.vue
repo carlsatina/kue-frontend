@@ -60,7 +60,7 @@
                   type="button"
                   @click="selectionTab = 'teams'"
                 >
-                  Teams
+                  Pairs
                 </button>
               </div>
               <div class="game-type inline">
@@ -80,13 +80,21 @@
                     selected: sessionIsOpen && selectedIds.includes(player.id),
                     disabled: isPlaying(player),
                     'new-player': isNewPlayer(player),
-                    'over-limit': isOverJoinLimit(player.id)
+                    'over-limit': isOverJoinLimit(player.id),
+                    'has-team': playerTeamColor(player),
+                    'team-missing': isTournamentMode && !playerTeamIdById(player.id)
                   }"
+                  :style="playerCardStyle(player)"
                   @click="toggleSelect(player)"
                 >
                   <div class="player-card-top">
                     <div class="player-name">
                       <div class="player-name-row">
+                        <span
+                          v-if="playerTeamColor(player)"
+                          class="team-dot"
+                          :style="{ backgroundColor: playerTeamColor(player) }"
+                        ></span>
                         <strong class="player-name-text">{{ player.nickname || player.fullName }}</strong>
                         <button class="icon-button small" @click.stop="openEditPlayer(player)" aria-label="Edit player">
                           <svg viewBox="0 0 24 24" role="img">
@@ -135,15 +143,15 @@
             <div v-if="sessionGameType === 'doubles' && selectionTab === 'teams'" class="team-select">
               <div class="team-select-head">
                 <div>
-                  <div class="subtitle">Team Builder Teams</div>
-                  <div class="subtitle compact">Select 2 teams to queue a match.</div>
+                  <div class="subtitle">Pairs</div>
+                  <div class="subtitle compact">Select 2 pairs to queue a match.</div>
                 </div>
-                <router-link class="button button-compact blue-gradient" to="/team-builder">
-                  Open Team Builder
+                <router-link class="button button-compact blue-gradient" to="/pairing">
+                  Open Pairing
                 </router-link>
               </div>
               <div v-if="filteredTeamOptions.length === 0" class="subtitle compact">
-                No teams yet.
+                No pairs yet.
               </div>
               <div v-else class="team-select-grid">
                 <button
@@ -159,7 +167,14 @@
                   @click="toggleTeamSelection(team)"
                 >
                   <div class="team-select-headline">
-                    <div class="team-select-name">{{ team.displayName }}</div>
+                    <div class="team-select-name">
+                      <span
+                        v-if="team.teamColor"
+                        class="team-color"
+                        :style="{ backgroundColor: team.teamColor }"
+                      ></span>
+                      <span>{{ team.displayName }}</span>
+                    </div>
                     <span v-if="team.status" class="team-status-pill" :class="team.status.toLowerCase()">
                       {{ team.status }}
                     </span>
@@ -172,7 +187,7 @@
               </div>
               <div class="team-select-actions">
                 <button class="button button-compact" :disabled="!canAddTeams" @click="addSelectedTeams">
-                  Add Team{{ selectedTeamIds.length === 1 ? "" : "s" }} to Queue
+                  Add Pair{{ selectedTeamIds.length === 1 ? "" : "s" }} to Queue
                 </button>
                 <button
                   class="button ghost button-compact"
@@ -351,6 +366,20 @@
         </div>
       </div>
     </div>
+    <div v-if="showTeamWarning" class="modal-backdrop">
+      <div class="modal-card">
+        <h3>Team required</h3>
+        <div class="subtitle">
+          {{ teamWarningText }}
+        </div>
+        <div class="grid two">
+          <router-link class="button button-compact" to="/teams" @click="closeTeamWarning">
+            Manage Teams
+          </router-link>
+          <button class="button ghost button-compact" @click="closeTeamWarning">Close</button>
+        </div>
+      </div>
+    </div>
     <div v-if="showCancelConfirm" class="modal-backdrop">
       <div class="modal-card">
         <h3>Cancel match</h3>
@@ -502,7 +531,7 @@
     </div>
     <div v-if="showTeamQueueModal" class="modal-backdrop">
       <div class="modal-card">
-        <h3>Queue teams</h3>
+        <h3>Queue pairs</h3>
         <div class="subtitle">Confirm this match pairing.</div>
         <div class="singles-match-row">
           <div v-if="teamQueueOrder[0]" class="singles-pill singles-pill-a">
@@ -558,6 +587,8 @@ const editSkillLevel = ref("Beginner");
 const editError = ref("");
 const showDuplicateWarning = ref(false);
 const duplicateWarningNames = ref([]);
+const showTeamWarning = ref(false);
+const teamWarningNames = ref([]);
 const pendingQueueOrder = ref(null);
 const showRemoveConfirm = ref(false);
 const removeConfirmNames = ref([]);
@@ -604,6 +635,7 @@ const sessionGameType = computed(() => {
   const normalized = typeof raw === "string" ? raw.toLowerCase() : "doubles";
   return normalized === "single" ? "singles" : normalized;
 });
+const isTournamentMode = computed(() => session.value?.mode === "tournament");
 const sessionGameTypeLabel = computed(() =>
   sessionGameType.value === "singles" ? "Singles" : "Doubles"
 );
@@ -731,7 +763,10 @@ const joinedPlayersForTeams = computed(() => {
     .sort((a, b) => new Date(a.checkedInAt) - new Date(b.checkedInAt))
     .map((sp) => ({
       id: sp.player.id,
-      name: sp.player.nickname || sp.player.fullName
+      name: sp.player.nickname || sp.player.fullName,
+      teamId: sp.player.teamId || sp.player.team?.id || null,
+      teamColor: sp.player.team?.color || null,
+      teamName: sp.player.team?.name || null
     }));
 });
 
@@ -787,11 +822,19 @@ const canAddTeams = computed(
 const queueMatchCount = computed(() => queueMatches.value.length);
 
 const manualAssignedIds = computed(() => {
-  return new Set(
-    manualTeams.value
-      .flatMap((team) => team.memberIds || [])
-      .filter((id) => typeof id === "string" && id.length > 0)
-  );
+  const ids = new Set();
+  manualTeams.value.forEach((team) => {
+    const memberIds = (team.memberIds || []).filter((id) => typeof id === "string" && id.length > 0);
+    if (!memberIds.length) return;
+    if (isTournamentMode.value) {
+      if (memberIds.length < 2) return;
+      const teamA = playerTeamIdById(memberIds[0]);
+      const teamB = playerTeamIdById(memberIds[1]);
+      if (!teamA || teamA !== teamB) return;
+    }
+    memberIds.forEach((id) => ids.add(id));
+  });
+  return ids;
 });
 
 const autoTeams = computed(() => {
@@ -812,15 +855,27 @@ const teamOptions = computed(() => {
   ];
   return mergedTeams.map((team) => {
     const memberIds = Array.isArray(team.memberIds) ? team.memberIds : [];
-    const memberNames = memberIds
+    const memberPlayers = memberIds
       .map((id) => sessionPlayerMap.value.get(id)?.player || playerMap.value.get(id))
-      .filter(Boolean)
-      .map((player) => player.nickname || player.fullName);
+      .filter(Boolean);
+    const memberNames = memberPlayers.map((player) => player.nickname || player.fullName);
+    const memberTeamIds = memberPlayers
+      .map((player) => player.teamId || player.team?.id || null)
+      .filter(Boolean);
+    const sharedTeamId =
+      memberTeamIds.length === memberPlayers.length && new Set(memberTeamIds).size === 1 ? memberTeamIds[0] : null;
+    const sharedTeam = sharedTeamId
+      ? memberPlayers.find((player) => (player.teamId || player.team?.id) === sharedTeamId)?.team
+      : null;
+    const teamColor = sharedTeam?.color || null;
+    const pairTeamId = sharedTeamId || null;
     const missingMembers = memberIds.some((id) => !activeSessionPlayerIds.value.has(id));
     return {
       ...team,
       memberIds,
       memberNames,
+      teamColor,
+      pairTeamId,
       displayName: memberNames.length ? memberNames.join(" + ") : team.name || "Team",
       missingMembers,
       status: resolveTeamStatus(memberIds, missingMembers, team.disabled)
@@ -859,6 +914,13 @@ const duplicateWarningText = computed(() => {
   return `These players are already queued or playing: ${duplicateWarningNames.value.join(", ")}. Add to queue again?`;
 });
 
+const teamWarningText = computed(() => {
+  if (!teamWarningNames.value.length) {
+    return "Players must belong to a team before queueing in tournament mode.";
+  }
+  return `Assign these players to a team before queueing: ${teamWarningNames.value.join(", ")}.`;
+});
+
 const removeConfirmText = computed(() => {
   if (!removeConfirmNames.value.length) return "Remove the selected players from this session?";
   return `Remove ${removeConfirmNames.value.join(", ")} from this session?`;
@@ -867,23 +929,68 @@ const removeConfirmText = computed(() => {
 const queueMatches = computed(() => {
   const entries = queueEntries.value.slice();
   const matches = [];
-  for (let i = 0; i < entries.length; i += 2) {
+  const entryTeamId = (entry) => {
+    if (!entry?.players?.length) return null;
+    const teamIds = entry.players.map((p) => p.player?.teamId || p.player?.team?.id || null);
+    if (teamIds.some((id) => !id)) return null;
+    const unique = new Set(teamIds);
+    if (unique.size !== 1) return null;
+    return teamIds[0];
+  };
+
+  if (!isTournamentMode.value) {
+    for (let i = 0; i < entries.length; i += 2) {
+      const a = entries[i];
+      const b = entries[i + 1];
+      if (!a || !b) break;
+      matches.push({
+        id: `${a.id}-${b.id}`,
+        typeLabel: a.type === "doubles" ? "Doubles Match" : "Singles Match",
+        teamA: a.players.map((p) => p.player.nickname || p.player.fullName),
+        teamB: b.players.map((p) => p.player.nickname || p.player.fullName),
+        requestedAt: a.createdAt,
+        entryIds: [a.id, b.id],
+        matchType: a.type,
+        teamIds: [
+          a.players.map((p) => p.playerId),
+          b.players.map((p) => p.playerId)
+        ]
+      });
+    }
+    return matches;
+  }
+
+  const used = new Set();
+  for (let i = 0; i < entries.length; i += 1) {
     const a = entries[i];
-    const b = entries[i + 1];
-    if (!a || !b) break;
-    matches.push({
-      id: `${a.id}-${b.id}`,
-      typeLabel: a.type === "doubles" ? "Doubles Match" : "Singles Match",
-      teamA: a.players.map((p) => p.player.nickname || p.player.fullName),
-      teamB: b.players.map((p) => p.player.nickname || p.player.fullName),
-      requestedAt: a.createdAt,
-      entryIds: [a.id, b.id],
-      matchType: a.type,
-      teamIds: [
-        a.players.map((p) => p.playerId),
-        b.players.map((p) => p.playerId)
-      ]
-    });
+    if (!a || used.has(a.id)) continue;
+    const teamAId = entryTeamId(a);
+    if (!teamAId) continue;
+    let paired = false;
+    for (let j = i + 1; j < entries.length; j += 1) {
+      const b = entries[j];
+      if (!b || used.has(b.id)) continue;
+      const teamBId = entryTeamId(b);
+      if (!teamBId || teamBId === teamAId) continue;
+      matches.push({
+        id: `${a.id}-${b.id}`,
+        typeLabel: a.type === "doubles" ? "Doubles Match" : "Singles Match",
+        teamA: a.players.map((p) => p.player.nickname || p.player.fullName),
+        teamB: b.players.map((p) => p.player.nickname || p.player.fullName),
+        requestedAt: a.createdAt,
+        entryIds: [a.id, b.id],
+        matchType: a.type,
+        teamIds: [
+          a.players.map((p) => p.playerId),
+          b.players.map((p) => p.playerId)
+        ]
+      });
+      used.add(a.id);
+      used.add(b.id);
+      paired = true;
+      break;
+    }
+    if (!paired) continue;
   }
   return matches;
 });
@@ -1029,6 +1136,7 @@ function isTeamDisabled(team) {
   if (team.disabled) return true;
   if (!team.memberIds || team.memberIds.length < 2) return true;
   if (team.missingMembers) return true;
+  if (isTournamentMode.value && !team.pairTeamId) return true;
   return false;
 }
 
@@ -1043,22 +1151,51 @@ function resolveTeamStatus(memberIds, missingMembers, disabled) {
 
 function buildAutoTeams(players) {
   const teams = [];
-  for (let i = 0; i < players.length; i += 2) {
-    const first = players[i];
-    const second = players[i + 1];
-    if (!first) break;
-    if (second) {
+  const used = new Set();
+  const teamBuckets = new Map();
+  const teamOrder = [];
+
+  for (const player of players) {
+    if (!player.teamId) continue;
+    if (!teamBuckets.has(player.teamId)) {
+      teamBuckets.set(player.teamId, []);
+      teamOrder.push(player.teamId);
+    }
+    teamBuckets.get(player.teamId).push(player);
+  }
+
+  for (const teamId of teamOrder) {
+    const bucket = teamBuckets.get(teamId) || [];
+    while (bucket.length >= 2) {
+      const first = bucket.shift();
+      const second = bucket.shift();
+      if (!first || !second) break;
+      used.add(first.id);
+      used.add(second.id);
       const memberIds = [first.id, second.id];
       teams.push(buildTeam(memberIds, `${first.name} + ${second.name}`, { source: "auto" }));
-    } else {
-      const memberIds = [first.id];
-      teams.push(
-        buildTeam(memberIds, `${first.name} + BYE`, {
-          disabled: true,
-          source: "auto",
-          teamKeyOverride: teamKey([first.id, `bye-${first.id}`])
-        })
-      );
+    }
+  }
+
+  if (!isTournamentMode.value) {
+    const remaining = players.filter((player) => !used.has(player.id));
+    for (let i = 0; i < remaining.length; i += 2) {
+      const first = remaining[i];
+      const second = remaining[i + 1];
+      if (!first) break;
+      if (second) {
+        const memberIds = [first.id, second.id];
+        teams.push(buildTeam(memberIds, `${first.name} + ${second.name}`, { source: "auto" }));
+      } else {
+        const memberIds = [first.id];
+        teams.push(
+          buildTeam(memberIds, `${first.name} + BYE`, {
+            disabled: true,
+            source: "auto",
+            teamKeyOverride: teamKey([first.id, `bye-${first.id}`])
+          })
+        );
+      }
     }
   }
   return teams;
@@ -1190,6 +1327,9 @@ async function load() {
   sessionPlayers.value = playersResult.status === "fulfilled" ? playersResult.value : [];
   matches.value = matchesResult.status === "fulfilled" ? matchesResult.value : [];
   manualTeams.value = sessionGameType.value === "doubles" ? loadManualTeams(currentSession.id) : [];
+  if (sessionGameType.value === "doubles") {
+    selectionTab.value = "teams";
+  }
 }
 
 async function addPlayer() {
@@ -1231,6 +1371,11 @@ async function addToQueue() {
   if (selectedIds.value.length !== selectionLimit.value) {
     queueError.value = `Select ${selectionLimit.value} players.`;
     return;
+  }
+  if (isTournamentMode.value) {
+    if (!precheckTournamentSelection(selectedIds.value)) {
+      return;
+    }
   }
 
   try {
@@ -1870,6 +2015,103 @@ function playerNameById(id) {
   return player ? player.nickname || player.fullName : "Unknown";
 }
 
+function playerTeamIdById(playerId) {
+  const sp = sessionPlayerMap.value.get(playerId);
+  return sp?.player?.teamId || sp?.player?.team?.id || playerMap.value.get(playerId)?.teamId || null;
+}
+
+function playerTeamColor(player) {
+  return player?.team?.color || null;
+}
+
+function playerCardStyle(player) {
+  const color = playerTeamColor(player);
+  return color ? { "--team-color": color } : {};
+}
+
+function openTeamWarning(order) {
+  teamWarningNames.value = order
+    .map((id) => players.value.find((p) => p.id === id))
+    .filter(Boolean)
+    .map((p) => p.nickname || p.fullName);
+  showTeamWarning.value = true;
+}
+
+function closeTeamWarning() {
+  showTeamWarning.value = false;
+  teamWarningNames.value = [];
+}
+
+function precheckTournamentSelection(order) {
+  if (!isTournamentMode.value) return true;
+  queueError.value = "";
+  const missing = order.filter((id) => !playerTeamIdById(id));
+  if (missing.length) {
+    openTeamWarning(missing);
+    return false;
+  }
+  if (sessionGameType.value === "singles") {
+    if (order.length !== 2) return false;
+    const teamA = playerTeamIdById(order[0]);
+    const teamB = playerTeamIdById(order[1]);
+    if (teamA === teamB) {
+      queueError.value = "Select players from different teams.";
+      return false;
+    }
+  }
+  if (sessionGameType.value === "doubles") {
+    if (order.length !== 4) return false;
+    const counts = new Map();
+    order.forEach((id) => {
+      const teamId = playerTeamIdById(id);
+      counts.set(teamId, (counts.get(teamId) || 0) + 1);
+    });
+    if (counts.size !== 2) {
+      queueError.value = "Select players from two teams.";
+      return false;
+    }
+    if (![...counts.values()].every((count) => count === 2)) {
+      queueError.value = "Select two players from each team.";
+      return false;
+    }
+  }
+  return true;
+}
+
+function validateTournamentOrder(order) {
+  if (!isTournamentMode.value) return true;
+  const missing = order.filter((id) => !playerTeamIdById(id));
+  if (missing.length) {
+    openTeamWarning(missing);
+    return false;
+  }
+  if (sessionGameType.value === "singles") {
+    if (order.length !== 2) return false;
+    const teamA = playerTeamIdById(order[0]);
+    const teamB = playerTeamIdById(order[1]);
+    if (teamA === teamB) {
+      queueError.value = "Teams must be different.";
+      return false;
+    }
+  }
+  if (sessionGameType.value === "doubles") {
+    if (order.length !== 4) return false;
+    const teamA = playerTeamIdById(order[0]);
+    const teamA2 = playerTeamIdById(order[1]);
+    const teamB = playerTeamIdById(order[2]);
+    const teamB2 = playerTeamIdById(order[3]);
+    if (teamA !== teamA2 || teamB !== teamB2) {
+      queueError.value = "Each team must be from the same team.";
+      return false;
+    }
+    if (teamA === teamB) {
+      queueError.value = "Teams must be different.";
+      return false;
+    }
+  }
+  return true;
+}
+
 function selectPairSlot(index) {
   if (!pairingOrder.value[index]) return;
   if (draggingPairIndex.value != null) return;
@@ -1891,6 +2133,10 @@ function selectPairSlot(index) {
 }
 
 async function attemptQueue(order) {
+  queueError.value = "";
+  if (!validateTournamentOrder(order)) {
+    return;
+  }
   if (hasDuplicateSelection(order)) {
     openDuplicateWarning(order);
     return;
@@ -1907,8 +2153,20 @@ async function addSelectedTeams() {
   const teamMap = new Map(teamOptions.value.map((team) => [team.id, team]));
   const teams = selectedTeamIds.value.map((id) => teamMap.get(id)).filter(Boolean);
   if (teams.length !== 2) {
-    queueError.value = "Select 2 teams.";
+    queueError.value = "Select 2 pairs.";
     return;
+  }
+  if (isTournamentMode.value) {
+    const teamA = teams[0].pairTeamId;
+    const teamB = teams[1].pairTeamId;
+    if (!teamA || !teamB) {
+      queueError.value = "Select pairs from the same team.";
+      return;
+    }
+    if (teamA === teamB) {
+      queueError.value = "Teams must be different.";
+      return;
+    }
   }
   if (!showTeamQueueModal.value) {
     openTeamQueueModal();
@@ -1925,13 +2183,25 @@ async function attemptQueueTeams(teamIds) {
   const teamMap = new Map(teamOptions.value.map((team) => [team.id, team]));
   const teams = teamIds.map((id) => teamMap.get(id)).filter(Boolean);
   if (teams.length !== 2) {
-    queueError.value = "Select 2 teams.";
+    queueError.value = "Select 2 pairs.";
     return;
   }
   const invalid = teams.some((team) => isTeamDisabled(team));
   if (invalid) {
-    queueError.value = "One or more teams are missing players.";
+    queueError.value = "One or more pairs are missing players.";
     return;
+  }
+  if (isTournamentMode.value) {
+    const teamA = teams[0].pairTeamId;
+    const teamB = teams[1].pairTeamId;
+    if (!teamA || !teamB) {
+      queueError.value = "Select pairs from the same team.";
+      return;
+    }
+    if (teamA === teamB) {
+      queueError.value = "Teams must be different.";
+      return;
+    }
   }
   const playerIds = teams.flatMap((team) => team.memberIds || []);
   if (hasDuplicateSelection(playerIds)) {
@@ -1971,6 +2241,9 @@ watch(
         if (showSinglesQueueModal.value) closeSinglesQueueModal();
         return;
       }
+      if (isTournamentMode.value && !precheckTournamentSelection(selectedIds.value)) {
+        return;
+      }
       if (showSinglesQueueModal.value) return;
       if (signature && signature !== lastSinglesSignature.value) {
         lastSinglesSignature.value = signature;
@@ -1980,6 +2253,9 @@ watch(
     }
     if (sessionGameType.value !== "doubles") return;
     if (selectedIds.value.length !== 4) return;
+    if (isTournamentMode.value && !precheckTournamentSelection(selectedIds.value)) {
+      return;
+    }
     if (showPairingModal.value) return;
     if (signature && signature !== lastPairingSignature.value) {
       lastPairingSignature.value = signature;
@@ -2050,6 +2326,15 @@ watch(sessionGameType, () => {
   }
   if (session.value?.id) {
     manualTeams.value = loadManualTeams(session.value.id);
+  }
+  selectionTab.value = "teams";
+});
+
+watch(isTournamentMode, (isTournament) => {
+  if (!isTournament) return;
+  selectedTeamIds.value = [];
+  if (sessionGameType.value !== "doubles") {
+    selectionTab.value = "players";
   }
 });
 

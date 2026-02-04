@@ -7,7 +7,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.13.0'
+        classpath 'com.android.tools.build:gradle:8.11.0'
         classpath 'com.google.gms:google-services:4.4.4'
 
         // NOTE: Do not place your application dependencies here; they belong
@@ -22,6 +22,36 @@ allprojects {
         google()
         mavenCentral()
     }
+}
+
+subprojects { subproject ->
+    subproject.buildscript {
+        configurations.classpath {
+            resolutionStrategy.eachDependency { details ->
+                if (details.requested.group == 'com.android.tools.build'
+                        && details.requested.name == 'gradle') {
+                    details.useVersion '8.11.0'
+                }
+            }
+        }
+    }
+
+    def applyJava17 = {
+        subproject.afterEvaluate {
+            if (subproject.hasProperty('android')) {
+                subproject.android {
+                    compileOptions {
+                        sourceCompatibility JavaVersion.VERSION_17
+                        targetCompatibility JavaVersion.VERSION_17
+                    }
+                }
+            }
+        }
+    }
+
+    subproject.plugins.withId('com.android.application') { applyJava17() }
+    subproject.plugins.withId('com.android.library') { applyJava17() }
+
 }
 
 task clean(type: Delete) {

@@ -206,8 +206,8 @@
         <div class="winner-card team-a">
           <div class="winner-row">
             <div class="winner-info">
-              <div class="subtitle">Team A</div>
-              <strong>{{ endMatchTeams.teamA }}</strong>
+              <div class="subtitle">{{ endMatchTeams.teamAName }}</div>
+              <strong>{{ endMatchTeams.teamAPlayers }}</strong>
             </div>
             <input
               class="input winner-score-input"
@@ -217,13 +217,15 @@
               placeholder="Score"
             />
           </div>
-          <button class="button button-compact" @click="setWinner(1)">Team A Wins</button>
+          <button class="button button-compact" @click="setWinner(1)">
+            {{ endMatchTeams.teamAName }} Wins
+          </button>
         </div>
         <div class="winner-card team-b">
           <div class="winner-row">
             <div class="winner-info">
-              <div class="subtitle">Team B</div>
-              <strong>{{ endMatchTeams.teamB }}</strong>
+              <div class="subtitle">{{ endMatchTeams.teamBName }}</div>
+              <strong>{{ endMatchTeams.teamBPlayers }}</strong>
             </div>
             <input
               class="input winner-score-input"
@@ -233,7 +235,9 @@
               placeholder="Score"
             />
           </div>
-          <button class="button button-compact secondary" @click="setWinner(2)">Team B Wins</button>
+          <button class="button button-compact secondary" @click="setWinner(2)">
+            {{ endMatchTeams.teamBName }} Wins
+          </button>
         </div>
       </div>
       <div class="match-modal-actions">
@@ -320,6 +324,13 @@
         </select>
       </div>
       <div class="field">
+        <label class="field-label">Session mode</label>
+        <select class="input" v-model="newSessionMode">
+          <option value="usual">Usual</option>
+          <option value="tournament">Tournament</option>
+        </select>
+      </div>
+      <div class="field">
         <label class="field-label">Fee amount</label>
         <input class="input" v-model.number="feeAmount" type="number" min="0" />
       </div>
@@ -352,6 +363,13 @@
         <select class="input" v-model="editGameType">
           <option value="doubles">Doubles</option>
           <option value="singles">Singles</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="field-label">Session mode</label>
+        <select class="input" v-model="editSessionMode">
+          <option value="usual">Usual</option>
+          <option value="tournament">Tournament</option>
         </select>
       </div>
       <div class="field">
@@ -388,6 +406,7 @@ const courts = ref([]);
 const error = ref("");
 const newSessionName = ref("Evening Open Play");
 const newGameType = ref("doubles");
+const newSessionMode = ref("usual");
 const feeAmount = ref(100);
 const showAddCourt = ref(false);
 const newCourtName = ref("");
@@ -408,7 +427,12 @@ const deleteCourtError = ref("");
 const showEndMatch = ref(false);
 const endMatchCourt = ref(null);
 const endMatchError = ref("");
-const endMatchTeams = ref({ teamA: "—", teamB: "—" });
+const endMatchTeams = ref({
+  teamAName: "Team A",
+  teamBName: "Team B",
+  teamAPlayers: "—",
+  teamBPlayers: "—"
+});
 const endMatchScoreA = ref("");
 const endMatchScoreB = ref("");
 const showInviteLink = ref(false);
@@ -434,6 +458,7 @@ const createError = ref("");
 const showEditSession = ref(false);
 const editSessionName = ref("");
 const editGameType = ref("doubles");
+const editSessionMode = ref("usual");
 const editSessionFeeAmount = ref(0);
 const editRegularJoinLimit = ref(0);
 const editNewJoinerLimit = ref(0);
@@ -571,6 +596,7 @@ async function createSession() {
     const created = await api.createSession({
       name: newSessionName.value,
       gameType: newGameType.value,
+      mode: newSessionMode.value,
       feeMode: "flat",
       feeAmount: Number(feeAmount.value),
       regularJoinLimit: Math.max(0, Number(regularJoinLimit.value) || 0),
@@ -601,6 +627,7 @@ function openEditSession() {
   editSessionError.value = "";
   editSessionName.value = session.value.name || "";
   editGameType.value = session.value.gameType || "doubles";
+  editSessionMode.value = session.value.mode || "usual";
   editSessionFeeAmount.value = Number(session.value.feeAmount || 0);
   editRegularJoinLimit.value = Number(session.value.regularJoinLimit || 0);
   editNewJoinerLimit.value = Number(session.value.newJoinerLimit || 0);
@@ -619,6 +646,7 @@ async function saveEditSession() {
     await api.updateSession(session.value.id, {
       name: editSessionName.value,
       gameType: editGameType.value,
+      mode: editSessionMode.value,
       feeAmount: Number(editSessionFeeAmount.value || 0),
       regularJoinLimit: Math.max(0, Number(editRegularJoinLimit.value) || 0),
       newJoinerLimit: Math.max(0, Number(editNewJoinerLimit.value) || 0)
@@ -650,9 +678,11 @@ function openEndMatch(courtSession) {
   if (!session.value || !courtSession.currentMatchId) return;
   endMatchCourt.value = courtSession;
   endMatchError.value = "";
-  const teamA = teamNames(courtSession.currentMatch, 1) || "—";
-  const teamB = teamNames(courtSession.currentMatch, 2) || "—";
-  endMatchTeams.value = { teamA, teamB };
+  const teamAName = teamDisplayName(courtSession.currentMatch, 1);
+  const teamBName = teamDisplayName(courtSession.currentMatch, 2);
+  const teamAPlayers = teamNames(courtSession.currentMatch, 1) || "—";
+  const teamBPlayers = teamNames(courtSession.currentMatch, 2) || "—";
+  endMatchTeams.value = { teamAName, teamBName, teamAPlayers, teamBPlayers };
   endMatchScoreA.value = "";
   endMatchScoreB.value = "";
   showEndMatch.value = true;
@@ -696,6 +726,22 @@ function teamNames(match, teamNumber) {
     .filter((p) => p.teamNumber === teamNumber)
     .map((p) => p.player.nickname || p.player.fullName)
     .join(" + ");
+}
+
+function teamDisplayName(match, teamNumber) {
+  if (!match) return teamNumber === 1 ? "Team A" : "Team B";
+  const participants = match.participants.filter((p) => p.teamNumber === teamNumber);
+  if (!participants.length) return teamNumber === 1 ? "Team A" : "Team B";
+  const teamNames = participants
+    .map((p) => p.player?.team?.name)
+    .filter((name) => typeof name === "string" && name.trim().length > 0);
+  if (teamNames.length === participants.length) {
+    const unique = new Set(teamNames.map((name) => name.trim()));
+    if (unique.size === 1) {
+      return [...unique][0];
+    }
+  }
+  return teamNumber === 1 ? "Team A" : "Team B";
 }
 
 function formatTime(timestamp) {
@@ -818,7 +864,12 @@ function closeEndMatch() {
   showEndMatch.value = false;
   endMatchCourt.value = null;
   endMatchError.value = "";
-  endMatchTeams.value = { teamA: "—", teamB: "—" };
+  endMatchTeams.value = {
+    teamAName: "Team A",
+    teamBName: "Team B",
+    teamAPlayers: "—",
+    teamBPlayers: "—"
+  };
   endMatchScoreA.value = "";
   endMatchScoreB.value = "";
 }

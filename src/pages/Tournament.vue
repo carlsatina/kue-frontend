@@ -56,9 +56,9 @@
           </div>
 
           <div v-else class="stack round-robin">
-            <div v-if="roundRobinStandings.length" class="round-robin-standings">
-              <div class="subtitle">Standings</div>
-              <div class="standings-table">
+            <div v-if="showTeamStats" class="round-robin-standings">
+              <div class="subtitle">Team statistics</div>
+              <div v-if="teamStats.length" class="standings-table">
                 <div class="standings-row head">
                   <span>#</span>
                   <span>Team</span>
@@ -67,15 +67,38 @@
                   <span>GP</span>
                   <span>PTS</span>
                 </div>
-                <div v-for="team in roundRobinStandings" :key="team.id" class="standings-row">
+                <div v-for="team in teamStats" :key="team.id" class="standings-row">
                   <span class="standings-rank">{{ team.rank }}</span>
                   <span class="standings-name">{{ team.name }}</span>
                   <span>{{ team.wins }}</span>
                   <span>{{ team.losses }}</span>
                   <span>{{ team.gamesPlayed }}</span>
-                  <span class="standings-points">{{ team.pointsFor }}</span>
+                  <span class="standings-points">{{ team.points }}</span>
                 </div>
               </div>
+              <div v-else class="subtitle compact">No team stats yet.</div>
+            </div>
+            <div v-if="showPairStats" class="round-robin-standings">
+              <div class="subtitle">Pair statistics</div>
+              <div v-if="pairStats.length" class="standings-table">
+                <div class="standings-row head">
+                  <span>#</span>
+                  <span>Pair</span>
+                  <span>W</span>
+                  <span>L</span>
+                  <span>GP</span>
+                  <span>PTS</span>
+                </div>
+                <div v-for="pair in pairStats" :key="pair.id" class="standings-row">
+                  <span class="standings-rank">{{ pair.rank }}</span>
+                  <span class="standings-name">{{ pair.name }}</span>
+                  <span>{{ pair.wins }}</span>
+                  <span>{{ pair.losses }}</span>
+                  <span>{{ pair.gamesPlayed }}</span>
+                  <span class="standings-points">{{ pair.points }}</span>
+                </div>
+              </div>
+              <div v-else class="subtitle compact">No pair stats yet.</div>
             </div>
             <div v-for="round in bracketData.rounds" :key="round.name" class="round-robin-round">
               <div class="subtitle">{{ round.name }}</div>
@@ -170,11 +193,11 @@
           </div>
           <div v-if="session && matchFormat === 'doubles'" class="tournament-tool vertical">
             <div>
-              <div class="subtitle">Team Builder</div>
-              <strong>{{ manualTeams.length }} manual teams</strong>
+              <div class="subtitle">Pairing</div>
+              <strong>{{ manualTeams.length }} manual pairs</strong>
             </div>
-            <router-link class="button button-compact blue-gradient no-wrap" to="/team-builder">
-              Open Team Builder
+            <router-link class="button button-compact blue-gradient no-wrap" to="/pairing">
+              Open Pairing
             </router-link>
           </div>
 
@@ -287,6 +310,7 @@ import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.j
 const session = ref(null);
 const sessionPlayers = ref([]);
 const matches = ref([]);
+const teamStats = ref([]);
 const error = ref("");
 const matchFormat = computed(() => session.value?.gameType || "doubles");
 const matchFormatLabel = computed(() =>
@@ -354,11 +378,12 @@ const entrantKeys = computed(() => {
 
 const matchResults = computed(() => buildMatchResults(matches.value));
 const seedOrderActive = computed(() => seedOrderIds.value.length > 0);
-const roundRobinStandings = computed(() => {
-  if (bracketType.value !== "round_robin") return [];
-  if (!bracketData.value?.rounds) return [];
-  return buildRoundRobinStandings(bracketData.value.rounds, entrants.value);
+const pairStats = computed(() => {
+  if (matchFormat.value !== "doubles") return [];
+  return buildPairRows(matches.value);
 });
+const showTeamStats = computed(() => session.value?.mode === "tournament");
+const showPairStats = computed(() => matchFormat.value === "doubles");
 
 const bracketData = computed(() => {
   if (!session.value) return null;
@@ -401,6 +426,7 @@ async function load() {
     if (!currentSession) {
       sessionPlayers.value = [];
       matches.value = [];
+      teamStats.value = [];
       manualOverrides.value = {};
       manualTeams.value = [];
       seedOrderIds.value = [];
@@ -409,12 +435,23 @@ async function load() {
     sessionPlayers.value = await api.sessionPlayers(currentSession.id);
     matches.value = await api.matchHistory(currentSession.id);
     manualTeams.value = loadManualTeams(currentSession.id);
+    if (currentSession.mode === "tournament") {
+      try {
+        const result = await api.teamStats(currentSession.id);
+        teamStats.value = result.teams || [];
+      } catch {
+        teamStats.value = [];
+      }
+    } else {
+      teamStats.value = [];
+    }
     await loadOverrides();
   } catch (err) {
     error.value = err.message || "Unable to load session";
     session.value = null;
     sessionPlayers.value = [];
     matches.value = [];
+    teamStats.value = [];
     manualOverrides.value = {};
     manualTeams.value = [];
     seedOrderIds.value = [];
@@ -635,102 +672,81 @@ function applyMatchResults(rounds, propagateWinners = false) {
   return rounds;
 }
 
-function buildRoundRobinStandings(rounds, entrantList) {
-  const map = new Map();
-  const nameMap = new Map();
-  (entrantList || []).forEach((entrant) => {
-    if (!entrant) return;
-    if (typeof entrant === "string") {
-      nameMap.set(entrant, entrant);
-      map.set(entrant, initStanding(entrant, entrant));
-      return;
-    }
-    const id = entrant.id;
-    if (!id) return;
-    const name = entrant.name || "Team";
-    nameMap.set(id, name);
-    map.set(id, initStanding(id, name));
-  });
+function buildPairRows(matchHistory) {
+  const stats = new Map();
+  const ensurePair = (pairKey, pairName) => {
+    if (stats.has(pairKey)) return stats.get(pairKey);
+    const entry = {
+      id: pairKey,
+      name: pairName,
+      gamesPlayed: 0,
+      wins: 0,
+      losses: 0,
+      points: 0,
+      winPct: 0,
+      rank: 0
+    };
+    stats.set(pairKey, entry);
+    return entry;
+  };
+  const normalizePair = (players) => {
+    const ids = players.map((player) => player.id).sort();
+    const name = players
+      .slice()
+      .sort((a, b) => {
+        const nameA = (a.nickname || a.fullName || "").toLowerCase();
+        const nameB = (b.nickname || b.fullName || "").toLowerCase();
+        return nameA.localeCompare(nameB);
+      })
+      .map((player) => player.nickname || player.fullName || "Player")
+      .join(" + ");
+    return { key: ids.join("+"), name };
+  };
 
-  rounds.forEach((round) => {
-    round.matchs.forEach((match) => {
-      const team1 = match.team1;
-      const team2 = match.team2;
-      if (!team1?.id || !team2?.id) return;
-      if (!map.has(team1.id)) {
-        map.set(team1.id, initStanding(team1.id, team1.name || nameMap.get(team1.id) || "Team"));
-      }
-      if (!map.has(team2.id)) {
-        map.set(team2.id, initStanding(team2.id, team2.name || nameMap.get(team2.id) || "Team"));
-      }
-      const score1 = roundRobinScore(match, 1);
-      const score2 = roundRobinScore(match, 2);
-      const hasScore = score1 != null || score2 != null;
-      const hasWinner = Boolean(match.winner);
-      if (!hasScore && !hasWinner) return;
+  (matchHistory || [])
+    .filter((match) => match.status === "ended" && match.matchType === "doubles")
+    .forEach((match) => {
+      if (match.winnerTeam !== 1 && match.winnerTeam !== 2) return;
+      const participants = match.participants || [];
+      const team1Players = participants.filter((p) => p.teamNumber === 1).map((p) => p.player).filter(Boolean);
+      const team2Players = participants.filter((p) => p.teamNumber === 2).map((p) => p.player).filter(Boolean);
+      if (team1Players.length !== 2 || team2Players.length !== 2) return;
 
-      const team1Stats = map.get(team1.id);
-      const team2Stats = map.get(team2.id);
-      team1Stats.gamesPlayed += 1;
-      team2Stats.gamesPlayed += 1;
+      const pair1 = normalizePair(team1Players);
+      const pair2 = normalizePair(team2Players);
+      const entry1 = ensurePair(pair1.key, pair1.name);
+      const entry2 = ensurePair(pair2.key, pair2.name);
 
-      if (score1 != null && score2 != null) {
-        team1Stats.pointsFor += score1;
-        team1Stats.pointsAgainst += score2;
-        team2Stats.pointsFor += score2;
-        team2Stats.pointsAgainst += score1;
-      }
-
-      if (match.winner === team1.id) {
-        team1Stats.wins += 1;
-        team2Stats.losses += 1;
-        return;
-      }
-      if (match.winner === team2.id) {
-        team2Stats.wins += 1;
-        team1Stats.losses += 1;
-        return;
-      }
-      if (score1 != null && score2 != null) {
-        if (score1 > score2) {
-          team1Stats.wins += 1;
-          team2Stats.losses += 1;
-        } else if (score2 > score1) {
-          team2Stats.wins += 1;
-          team1Stats.losses += 1;
-        }
+      entry1.gamesPlayed += 1;
+      entry2.gamesPlayed += 1;
+      if (match.winnerTeam === 1) {
+        entry1.wins += 1;
+        entry2.losses += 1;
+        entry1.points += 10;
+        entry2.points += 6;
+      } else if (match.winnerTeam === 2) {
+        entry2.wins += 1;
+        entry1.losses += 1;
+        entry2.points += 10;
+        entry1.points += 6;
       }
     });
-  });
 
-  const rows = [...map.values()].map((team) => ({
-    ...team,
-    winPct: team.gamesPlayed ? team.wins / team.gamesPlayed : 0
+  const rows = [...stats.values()].map((pair) => ({
+    ...pair,
+    winPct: pair.gamesPlayed ? pair.wins / pair.gamesPlayed : 0
   }));
 
   rows.sort((a, b) => {
     if (b.wins !== a.wins) return b.wins - a.wins;
-    if (b.pointsFor !== a.pointsFor) return b.pointsFor - a.pointsFor;
+    if (b.points !== a.points) return b.points - a.points;
     if (b.gamesPlayed !== a.gamesPlayed) return b.gamesPlayed - a.gamesPlayed;
     return a.name.localeCompare(b.name);
   });
 
-  return rows.map((team, idx) => ({ ...team, rank: idx + 1 }));
+  return rows.map((pair, idx) => ({ ...pair, rank: idx + 1 }));
 }
 
-function initStanding(id, name) {
-  return {
-    id,
-    name,
-    wins: 0,
-    losses: 0,
-    gamesPlayed: 0,
-    pointsFor: 0,
-    pointsAgainst: 0,
-    winPct: 0,
-    rank: 0
-  };
-}
 
 function roundRobinScore(match, side) {
   if (side !== 1 && side !== 2) return null;

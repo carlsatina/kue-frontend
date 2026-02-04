@@ -2,17 +2,17 @@
   <div class="page-grid with-sidebar">
     <div class="page-main stack">
       <div class="card stack live-surface">
-        <div class="section-title">Team Builder</div>
+        <div class="section-title">Pairing</div>
         <div v-if="error" class="notice">{{ error }}</div>
         <div v-if="!session" class="subtitle">No active session.</div>
         <div v-else-if="matchFormat !== 'doubles'" class="subtitle">
-          Team builder is available for doubles sessions.
+          Pairing is available for doubles sessions.
         </div>
         <div v-else class="team-builder stack">
           <div class="team-builder-head">
             <div>
-              <div class="subtitle">Build teams</div>
-              <div class="subtitle compact">Select 2 players to create a team.</div>
+              <div class="subtitle">Build pairs</div>
+              <div class="subtitle compact">Select 2 players to create a pair.</div>
             </div>
             <div class="team-builder-actions">
               <button class="button ghost button-compact" @click="autoPairTeams">Auto Pair</button>
@@ -39,10 +39,10 @@
               </div>
             </div>
             <div class="team-builder-panel">
-              <div class="subtitle compact">Teams</div>
+              <div class="subtitle compact">Pairs</div>
               <div class="team-builder-list">
                 <div v-if="teamPreview.length === 0" class="subtitle compact">
-                  No teams yet.
+                  No pairs yet.
                 </div>
                 <div v-for="(team, idx) in teamPreview" :key="team.id" class="team-card">
                   <div class="team-name">
@@ -71,7 +71,7 @@
               @click="requestTeamConfirm"
               :disabled="selectedTeamPlayers.length !== 2"
             >
-              Create Team
+              Create Pair
             </button>
             <div class="subtitle compact">
               Selected {{ selectedTeamPlayers.length }}/2
@@ -95,7 +95,7 @@
             <strong>{{ joinedPlayers.length }}</strong>
           </div>
           <div class="kpi">
-            <div class="subtitle">Manual teams</div>
+            <div class="subtitle">Manual pairs</div>
             <strong>{{ manualTeams.length }}</strong>
           </div>
         </div>
@@ -108,8 +108,8 @@
 
   <div v-if="showTeamConfirm" class="modal-backdrop">
     <div class="modal-card">
-      <h3>Create Team</h3>
-      <div class="subtitle">Confirm this team pairing?</div>
+      <h3>Create Pair</h3>
+      <div class="subtitle">Confirm this pairing?</div>
       <div class="team-confirm">
         <strong>{{ selectedTeamNames[0] || "Player 1" }}</strong>
         <span class="team-confirm-plus">+</span>
