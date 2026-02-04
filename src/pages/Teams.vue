@@ -89,6 +89,10 @@
               {{ rosterHint }}
             </div>
             <label class="teams-toggle">
+              <input type="checkbox" v-model="showUnassigned" />
+              <span>Show unassigned players</span>
+            </label>
+            <label class="teams-toggle">
               <input type="checkbox" v-model="includeOtherTeams" />
               <span>Show players from other teams</span>
             </label>
@@ -323,6 +327,7 @@ const teamSearch = ref("");
 const rosterSearch = ref("");
 const sessionRosterSearch = ref("");
 const includeOtherTeams = ref(false);
+const showUnassigned = ref(true);
 const newPlayerName = ref("");
 const newPlayerSkill = ref("Beginner");
 const addPlayerError = ref("");
@@ -367,20 +372,27 @@ const filteredTeams = computed(() => {
   return teams.value.filter((team) => (team.name || "").toLowerCase().includes(term));
 });
 
-const rosterHint = computed(() =>
-  includeOtherTeams.value
-    ? "Showing all players. Selecting moves them from their current team."
-    : "Showing unassigned players and current team members."
-);
+const rosterHint = computed(() => {
+  if (includeOtherTeams.value && showUnassigned.value) {
+    return "Showing all players. Selecting moves them from their current team.";
+  }
+  if (includeOtherTeams.value && !showUnassigned.value) {
+    return "Showing current team and other teams. Unassigned players are hidden.";
+  }
+  if (!includeOtherTeams.value && showUnassigned.value) {
+    return "Showing unassigned players and current team members.";
+  }
+  return "Showing current team members only.";
+});
 
 const filteredRosterPlayers = computed(() => {
   const teamId = selectedTeamId.value;
-  const availablePlayers = includeOtherTeams.value
-    ? players.value
-    : players.value.filter((player) => {
-        const currentTeamId = player.teamId || player.team?.id || null;
-        return !currentTeamId || currentTeamId === teamId;
-      });
+  const availablePlayers = players.value.filter((player) => {
+    const currentTeamId = player.teamId || player.team?.id || null;
+    if (!showUnassigned.value && !currentTeamId) return false;
+    if (!includeOtherTeams.value && currentTeamId && currentTeamId !== teamId) return false;
+    return true;
+  });
   if (!rosterSearch.value.trim()) return availablePlayers;
   const term = rosterSearch.value.trim().toLowerCase();
   return availablePlayers.filter((player) => {
