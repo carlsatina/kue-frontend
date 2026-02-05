@@ -78,7 +78,7 @@
                 <div class="subtitle compact">{{ teamMembers.length }} players</div>
               </div>
             </div>
-            <div class="inline-actions">
+            <div class="inline-actions teams-manage-actions">
               <button class="button button-compact" @click="openEditTeam">Edit Team</button>
               <button class="button ghost danger button-compact" @click="openDeleteTeam">Delete</button>
             </div>
@@ -97,8 +97,20 @@
               <span>Show players from other teams</span>
             </label>
             <div class="teams-search-row">
-              <input class="input teams-search" v-model="rosterSearch" placeholder="Search players" />
-              <button class="button ghost button-compact" @click="openAddPlayerModal">Add New Player</button>
+              <button
+                class="button ghost button-compact"
+                type="button"
+                @click="toggleRosterSearch"
+                aria-label="Toggle player search"
+              >
+                {{ showRosterSearch ? "Hide Search" : "Search" }}
+              </button>
+              <input
+                v-if="showRosterSearch"
+                class="input teams-search"
+                v-model="rosterSearch"
+                placeholder="Search players"
+              />
             </div>
             <div class="team-member-list">
               <label v-for="player in filteredRosterPlayers" :key="player.id" class="team-member-row">
@@ -112,24 +124,22 @@
                 </span>
               </label>
             </div>
-            <div class="inline-actions">
+            <div class="inline-actions teams-member-actions">
               <button class="button button-compact" @click="saveMembers">Save Members</button>
               <button class="button ghost button-compact" @click="selectAllRosterMembers">Select all</button>
               <button class="button ghost button-compact" @click="clearRosterMembers">Clear</button>
+              <button class="button button-compact add-player-button" @click="openAddPlayerModal">
+                Add New Player
+              </button>
             </div>
           </div>
           <div class="team-section-spacer"></div>
           <div class="team-section session-section">
             <div class="team-section-title">Add to session</div>
-            <div class="subtitle compact team-assign-note">
-              Select which members to add to the current session.
-            </div>
             <div class="inline-actions">
               <button class="button secondary button-compact" @click="openSessionAddModal">
-                Add Team to Session
+                Add Team Members to Session
               </button>
-              <button class="button ghost button-compact" @click="selectAllSessionMembers">Select all</button>
-              <button class="button ghost button-compact" @click="clearSessionMembers">Clear</button>
             </div>
           </div>
           <div v-if="membersError" class="notice">{{ membersError }}</div>
@@ -240,7 +250,7 @@
     </div>
   </div>
   <div v-if="showSessionAddModal" class="modal-backdrop">
-    <div class="modal-card">
+    <div class="modal-card session-add-modal">
       <h3>Add team to session</h3>
       <div class="field">
         <label class="field-label">Session</label>
@@ -292,13 +302,17 @@
           </label>
           </div>
         </div>
-      <div class="inline-actions">
+      <div class="inline-actions session-add-actions">
         <button class="button ghost button-compact" @click="selectAllSessionMembers">Select all</button>
         <button class="button ghost button-compact" @click="clearSessionMembers">Clear</button>
       </div>
-      <div class="grid two">
-        <button class="button ghost" @click="closeSessionAddModal">Cancel</button>
-        <button class="button" @click="confirmSessionAdd" :disabled="!session || session.status !== 'open'">
+      <div class="grid two session-add-actions">
+        <button class="button ghost button-compact" @click="closeSessionAddModal">Cancel</button>
+        <button
+          class="button button-compact"
+          @click="confirmSessionAdd"
+          :disabled="!session || session.status !== 'open'"
+        >
           Add to Session
         </button>
       </div>
@@ -343,6 +357,7 @@ const rosterSearch = ref("");
 const sessionRosterSearch = ref("");
 const includeOtherTeams = ref(false);
 const showUnassigned = ref(true);
+const showRosterSearch = ref(false);
 const newPlayerName = ref("");
 const newPlayerSkill = ref("Beginner");
 const addPlayerError = ref("");
@@ -599,6 +614,11 @@ function openAddPlayerModal() {
   newPlayerName.value = "";
   newPlayerSkill.value = "Beginner";
   showAddPlayerModal.value = true;
+}
+
+function toggleRosterSearch() {
+  showRosterSearch.value = !showRosterSearch.value;
+  if (!showRosterSearch.value) rosterSearch.value = "";
 }
 
 function closeAddPlayerModal() {

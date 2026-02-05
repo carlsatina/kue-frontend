@@ -3483,8 +3483,8 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
+  gap: 8px;
+  padding: 8px 10px;
   border: 1px solid var(--teams-border);
   border-radius: 12px;
   background: #fff;
@@ -3494,12 +3494,22 @@ a {
 .teams-manage-info {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  min-width: 0;
 }
 
 .teams-manage-info .team-color {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
+}
+
+.teams-manage-actions {
+  gap: 6px;
+}
+
+.teams-manage-actions .button {
+  padding: 6px 10px;
+  font-size: 12px;
 }
 
 .teams-toggle {
@@ -3803,6 +3813,43 @@ a {
 .teams-page .team-member-row {
   background: var(--teams-mist);
   border: 1px solid rgba(31, 42, 46, 0.1);
+}
+
+.teams-page .teams-member-actions .button {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.teams-page .teams-member-actions .add-player-button {
+  background: #3b7ea1;
+  color: #ffffff;
+  border: 1px solid rgba(59, 126, 161, 0.45);
+  box-shadow: 0 8px 16px rgba(59, 126, 161, 0.2);
+}
+
+.session-add-modal .team-member-list {
+  max-height: 220px;
+  gap: 4px;
+}
+
+.session-add-modal .team-member-row {
+  padding: 5px 6px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+.session-add-modal .session-member-pill {
+  font-size: 10px;
+  padding: 1px 6px;
+}
+
+.session-add-modal .button {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.session-add-actions {
+  gap: 6px;
 }
 
 .teams-color-row {
