@@ -242,6 +242,20 @@
   <div v-if="showSessionAddModal" class="modal-backdrop">
     <div class="modal-card">
       <h3>Add team to session</h3>
+      <div class="field">
+        <label class="field-label">Session</label>
+        <select
+          class="input"
+          v-model="selectedSessionId"
+          @change="handleSessionSelectChange"
+          :disabled="openSessions.length === 0"
+        >
+          <option v-if="openSessions.length === 0" value="">No open sessions</option>
+          <option v-for="item in openSessions" :key="item.id" :value="item.id">
+            {{ item.name || "Session" }} · {{ item.status }}
+          </option>
+        </select>
+      </div>
       <div class="subtitle">
         {{ session?.name || "No session selected" }} · {{ session?.status || "inactive" }}
       </div>
@@ -303,6 +317,7 @@ const sessionPlayers = ref([]);
 const otherSessionPlayers = ref({});
 const selectedTeamId = ref("");
 const session = ref(null);
+const openSessions = ref([]);
 
 const newTeamName = ref("");
 const newTeamColor = ref("#2a9d8f");
@@ -426,6 +441,14 @@ async function load() {
   }
 }
 
+async function loadOpenSessions() {
+  try {
+    openSessions.value = await api.listSessions("open");
+  } catch {
+    openSessions.value = [];
+  }
+}
+
 async function loadSession() {
   sessionError.value = "";
   try {
@@ -484,6 +507,14 @@ async function loadOtherSessionsPlayers() {
   } catch {
     otherSessionPlayers.value = {};
   }
+}
+
+async function handleSessionSelectChange() {
+  if (!selectedSessionId.value) return;
+  setSelectedSessionId(selectedSessionId.value);
+  await loadSession();
+  await loadSessionPlayers();
+  await loadOtherSessionsPlayers();
 }
 
 function selectTeam(team) {
@@ -648,9 +679,17 @@ async function checkInTeam() {
 }
 
 function openSessionAddModal() {
-  loadSessionPlayers();
-  loadOtherSessionsPlayers();
-  showSessionAddModal.value = true;
+  loadOpenSessions().then(async () => {
+    const openIds = new Set(openSessions.value.map((item) => item.id));
+    if (!selectedSessionId.value || !openIds.has(selectedSessionId.value)) {
+      const fallbackId = openSessions.value[0]?.id || "";
+      if (fallbackId) setSelectedSessionId(fallbackId);
+    }
+    await loadSession();
+    await loadSessionPlayers();
+    await loadOtherSessionsPlayers();
+    showSessionAddModal.value = true;
+  });
 }
 
 function closeSessionAddModal() {
