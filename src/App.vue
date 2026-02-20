@@ -6,7 +6,7 @@
         <div class="subtitle">Sassy court control. Fast queues. Instant hype.</div>
       </div>
       <div v-if="showNav" class="header-center">
-        <nav class="nav nav-6">
+        <nav class="nav" :class="navClass">
           <router-link to="/" class="nav-item">
             <span class="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" role="img">
@@ -26,7 +26,7 @@
             </span>
             <span class="nav-label">Players</span>
           </router-link>
-          <router-link to="/teams" class="nav-item">
+          <router-link v-if="showTeamsNav" to="/teams" class="nav-item">
             <span class="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" role="img">
                 <circle cx="7.5" cy="9" r="2.5"></circle>
@@ -119,6 +119,15 @@ const sessions = ref([]);
 const liveSessions = computed(() => sessions.value.filter((s) => s.status === "open"));
 const showGlobalLoadingModal = ref(false);
 let loadingTimer = null;
+const activeSession = computed(() => {
+  const selected = liveSessions.value.find((session) => session.id === selectedSessionId.value);
+  return selected || liveSessions.value[0] || null;
+});
+const showTeamsNav = computed(() => {
+  if (!activeSession.value) return true;
+  return activeSession.value.mode === "tournament";
+});
+const navClass = computed(() => (showTeamsNav.value ? "nav-6" : "nav-5"));
 
 const sessionSelection = computed({
   get: () => selectedSessionId.value,
