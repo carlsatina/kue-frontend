@@ -91,14 +91,20 @@
       </router-link>
     </header>
     <router-view />
+    <GameLoadingModal
+      v-if="showGlobalLoadingModal"
+      title="Loading Match Data"
+      message="Fetching the latest courts, queues, and rankings."
+    />
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
-import { api } from "./api.js";
+import { api, isReadingFromBackend } from "./api.js";
 import { pendingSessionId, selectedSessionId, setPendingSessionId, setSelectedSessionId } from "./state/sessionStore.js";
+import GameLoadingModal from "./components/GameLoadingModal.vue";
 
 const route = useRoute();
 
@@ -111,6 +117,8 @@ const showProfile = computed(() => authed.value && !route.meta.public);
 const showNav = computed(() => !route.meta.public && authed.value);
 const sessions = ref([]);
 const liveSessions = computed(() => sessions.value.filter((s) => s.status === "open"));
+const showGlobalLoadingModal = ref(false);
+let loadingTimer = null;
 
 const sessionSelection = computed({
   get: () => selectedSessionId.value,
@@ -170,6 +178,26 @@ watch(authed, (isAuthed) => {
   }
 });
 
+watch(
+  isReadingFromBackend,
+  (isLoading) => {
+    if (isLoading) {
+      if (loadingTimer || showGlobalLoadingModal.value) return;
+      loadingTimer = window.setTimeout(() => {
+        showGlobalLoadingModal.value = true;
+        loadingTimer = null;
+      }, 180);
+      return;
+    }
+    if (loadingTimer) {
+      window.clearTimeout(loadingTimer);
+      loadingTimer = null;
+    }
+    showGlobalLoadingModal.value = false;
+  },
+  { immediate: true }
+);
+
 onMounted(() => {
   loadSessions();
   document.addEventListener("sessions:updated", handleSessionsUpdated);
@@ -178,6 +206,10 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  if (loadingTimer) {
+    window.clearTimeout(loadingTimer);
+    loadingTimer = null;
+  }
   document.removeEventListener("sessions:updated", handleSessionsUpdated);
   window.removeEventListener("auth:changed", handleAuthChanged);
   window.removeEventListener("storage", handleAuthChanged);

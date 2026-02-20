@@ -2,15 +2,22 @@
   <form class="card auth-card stack" @submit.prevent="handleLogin">
     <h2>Queue Master Login</h2>
     <p class="subtitle">Sign in to run today’s session.</p>
-    <input class="input" v-model="email" type="email" placeholder="Email" />
+    <input class="input" v-model="email" type="email" placeholder="Email" :disabled="isLoggingIn" />
     <div class="input-wrap">
       <input
         class="input"
         v-model="password"
         :type="showPassword ? 'text' : 'password'"
         placeholder="Password"
+        :disabled="isLoggingIn"
       />
-      <button class="icon-toggle" type="button" @click="showPassword = !showPassword" aria-label="Toggle password">
+      <button
+        class="icon-toggle"
+        type="button"
+        @click="showPassword = !showPassword"
+        :disabled="isLoggingIn"
+        aria-label="Toggle password"
+      >
         <svg viewBox="0 0 24 24" role="img">
           <path
             d="M12 5c-5 0-9.3 3.1-11 7 1.7 3.9 6 7 11 7s9.3-3.1 11-7c-1.7-3.9-6-7-11-7zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8z"
@@ -18,7 +25,9 @@
         </svg>
       </button>
     </div>
-    <button class="button" type="submit">Login</button>
+    <button class="button" type="submit" :disabled="isLoggingIn">
+      {{ isLoggingIn ? "Entering Court..." : "Login" }}
+    </button>
     <div class="subtitle">
       New here? <router-link to="/register">Create an account</router-link>
     </div>
@@ -30,21 +39,30 @@
     </div>
     <div v-if="error" class="notice">{{ error }}</div>
   </form>
+  <GameLoadingModal
+    v-if="isLoggingIn"
+    title="Starting the Match"
+    message="Warming up the court and syncing your queue."
+  />
 </template>
 
 <script setup>
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { api } from "../api.js";
+import GameLoadingModal from "../components/GameLoadingModal.vue";
 
 const router = useRouter();
 const email = ref("");
 const password = ref("");
 const showPassword = ref(false);
 const error = ref("");
+const isLoggingIn = ref(false);
 
 async function handleLogin() {
+  if (isLoggingIn.value) return;
   error.value = "";
+  isLoggingIn.value = true;
   try {
     const data = await api.login({ email: email.value, password: password.value });
     localStorage.setItem("token", data.token);
@@ -52,6 +70,8 @@ async function handleLogin() {
     router.push("/");
   } catch (err) {
     error.value = err.message;
+  } finally {
+    isLoggingIn.value = false;
   }
 }
 </script>

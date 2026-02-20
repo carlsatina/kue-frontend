@@ -1,23 +1,52 @@
+import { computed, ref } from "vue";
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+const activeReadRequests = ref(0);
+
+function withLoading(promise, enabled) {
+  if (!enabled) return promise;
+  activeReadRequests.value += 1;
+  return promise.finally(() => {
+    activeReadRequests.value = Math.max(0, activeReadRequests.value - 1);
+  });
+}
+
+export const isReadingFromBackend = computed(() => activeReadRequests.value > 0);
 
 async function request(path, options = {}) {
+  const { showLoading, ...requestOptions } = options;
+  const method = (requestOptions.method || "GET").toUpperCase();
+  const shouldShowLoading = showLoading ?? method === "GET";
+
   const token = localStorage.getItem("token");
   const headers = {
     "Content-Type": "application/json",
-    ...(options.headers || {})
+    ...(requestOptions.headers || {})
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers
-  });
+  return withLoading(
+    (async () => {
+      const res = await fetch(`${API_URL}${path}`, {
+        ...requestOptions,
+        headers
+      });
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error || "Request failed");
-  }
-  return data;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Request failed");
+      }
+      return data;
+    })(),
+    shouldShowLoading
+  );
+}
+
+function publicRequest(path, options = {}) {
+  const { showLoading, ...requestOptions } = options;
+  const method = (requestOptions.method || "GET").toUpperCase();
+  const shouldShowLoading = showLoading ?? method === "GET";
+  return withLoading(fetch(`${API_URL}${path}`, requestOptions).then((r) => r.json()), shouldShowLoading);
 }
 
 export const api = {
@@ -92,18 +121,18 @@ export const api = {
   revokeShareLink: (id) => request(`/share-links/${id}/revoke`, { method: "POST" }),
   createSessionShareLink: (sessionId) => request(`/share-links/session/${sessionId}`, { method: "POST" }),
   createSessionInviteLink: (sessionId) => request(`/share-links/session-invite/${sessionId}`, { method: "POST" }),
-  publicPlayer: (token) => fetch(`${API_URL}/public/player/${token}`).then((r) => r.json()),
-  publicQueue: (token) => fetch(`${API_URL}/public/queue/${token}`).then((r) => r.json()),
-  publicQueueRankings: (token) => fetch(`${API_URL}/public/queue/${token}/rankings`).then((r) => r.json()),
-  publicQueueTeamStats: (token) => fetch(`${API_URL}/public/queue/${token}/team-stats`).then((r) => r.json()),
-  publicQueueBracket: (token) => fetch(`${API_URL}/public/queue/${token}/bracket`).then((r) => r.json()),
-  publicSessionInvite: (token) => fetch(`${API_URL}/public/session-invite/${token}`).then((r) => r.json()),
-  publicSessionInvitePlayers: (token) => fetch(`${API_URL}/public/session-invite/${token}/players`).then((r) => r.json()),
+  publicPlayer: (token) => publicRequest(`/public/player/${token}`),
+  publicQueue: (token) => publicRequest(`/public/queue/${token}`),
+  publicQueueRankings: (token) => publicRequest(`/public/queue/${token}/rankings`),
+  publicQueueTeamStats: (token) => publicRequest(`/public/queue/${token}/team-stats`),
+  publicQueueBracket: (token) => publicRequest(`/public/queue/${token}/bracket`),
+  publicSessionInvite: (token) => publicRequest(`/public/session-invite/${token}`),
+  publicSessionInvitePlayers: (token) => publicRequest(`/public/session-invite/${token}/players`),
   publicSessionRegister: (token, payload) =>
-    fetch(`${API_URL}/public/session-invite/${token}/register`, {
+    publicRequest(`/public/session-invite/${token}/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
-    }).then((r) => r.json()),
-  publicBoard: (sessionId) => fetch(`${API_URL}/public/board/${sessionId}`).then((r) => r.json())
+    }),
+  publicBoard: (sessionId) => publicRequest(`/public/board/${sessionId}`)
 };
