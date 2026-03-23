@@ -20,8 +20,8 @@ import ForgotPassword from "./pages/ForgotPassword.vue";
 import ResetPassword from "./pages/ResetPassword.vue";
 
 const routes = [
-  { path: "/login", component: Login, meta: { public: true } },
-  { path: "/register", component: Register, meta: { public: true } },
+  { path: "/login", component: Login, meta: { public: true, hideHeader: true } },
+  { path: "/register", component: Register, meta: { public: true, hideHeader: true } },
   { path: "/p/:token", component: PublicPlayer, meta: { public: true } },
   { path: "/q/:token", component: PublicQueue, meta: { public: true, hideHeader: true } },
   { path: "/join/:token", component: JoinSession, meta: { public: true } },
