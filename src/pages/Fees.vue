@@ -1,4 +1,5 @@
 <template>
+  <div>
   <div class="fees-page">
     <!-- Page header -->
     <div class="fees-header">
@@ -90,6 +91,7 @@
       </div>
       <button class="button ghost" @click="closePayment">Cancel</button>
     </div>
+  </div>
   </div>
 </template>
 

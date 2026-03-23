@@ -1,4 +1,5 @@
 <template>
+  <div>
   <div class="pairing-page">
     <!-- Page header -->
     <div class="pairing-header">
@@ -114,6 +115,7 @@
         <button class="button" @click="confirmTeamCreate">Create</button>
       </div>
     </div>
+  </div>
   </div>
 </template>
 

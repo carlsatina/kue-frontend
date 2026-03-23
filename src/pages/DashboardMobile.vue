@@ -1,4 +1,5 @@
 <template>
+  <div>
   <div class="dm">
 
     <!-- ── Session Card ───────────────────────────────────────── -->
@@ -363,6 +364,7 @@
         <button class="button" @click="saveEditSession">Save</button>
       </div>
     </div>
+  </div>
   </div>
 </template>
 

@@ -1,9 +1,8 @@
 <template>
   <div class="app-shell" :class="{ 'bracket-shell': route.path === '/tournament' || route.path === '/pairing' }">
-    <header class="header">
+    <header v-if="!route.meta.hideHeader" class="header">
       <div class="brand">
-        <h1 class="title">Kue</h1>
-        <div class="brand-subtitle">Court control. Fast queues.</div>
+        <img src="./assets/KuePro.png" alt="KuePro" class="brand-logo" />
       </div>
       <!-- Desktop nav lives inside the header -->
       <div v-if="showNav" class="header-center">
@@ -231,3 +230,11 @@ onUnmounted(() => {
   window.removeEventListener("storage", handleAuthChanged);
 });
 </script>
+
+<style scoped>
+.brand-logo {
+  height: 44px;
+  width: auto;
+  display: block;
+}
+</style>

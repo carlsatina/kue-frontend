@@ -1,4 +1,5 @@
 <template>
+  <div>
   <div class="card stack">
     <div class="section-title">Join Session</div>
     <div v-if="loading" class="subtitle">Loading...</div>
@@ -53,6 +54,7 @@
       </div>
       <button class="button" @click="closePlayers">Close</button>
     </div>
+  </div>
   </div>
 </template>
 

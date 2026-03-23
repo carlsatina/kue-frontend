@@ -55,11 +55,13 @@
           :class="`podium-${rankClass(row.rank)}`"
           :style="{ animationDelay: `${idx * 80}ms` }"
         >
-          <div class="rank-corner-icon">{{ rankCornerIcon(row.rank) }}</div>
-          <div class="rank-medal">
-            <span class="rank-number">{{ row.rank }}</span>
+          <div class="podium-top-row">
+            <div class="rank-medal">
+              <span class="rank-number">{{ row.rank }}</span>
+            </div>
+            <span class="podium-icon">{{ rankCornerIcon(row.rank) }}</span>
+            <div class="rank-name podium-name">{{ row.name }}</div>
           </div>
-          <div class="rank-name">{{ row.name }}</div>
           <div class="rank-mini-stats">
             <span>GP {{ row.gamesPlayed }}</span>
             <span>W {{ row.wins }}</span>
@@ -384,6 +386,33 @@ watch(selectedSessionId, load);
 
 .rank-tab:hover:not(.active) {
   color: var(--ink);
+}
+
+/* ── Podium two-row layout ───────────────────────────────────────── */
+:deep(.rank-podium-card) {
+  gap: 6px;
+}
+
+.podium-top-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.podium-icon {
+  font-size: 15px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.podium-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
 }
 
 /* ── Empty state ─────────────────────────────────────────────────── */

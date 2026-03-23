@@ -1,155 +1,127 @@
 <template>
-  <div class="stack public-queue" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
+  <div class="public-queue" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
+    <!-- Pull to refresh indicator -->
     <div class="pull-indicator" :class="{ active: isPulling || refreshing }">
-      <span v-if="!refreshing">Pull down to refresh</span>
+      <span v-if="!refreshing">↓ Pull to refresh</span>
       <span v-else>Refreshing…</span>
     </div>
-    <div class="queue-hero">
-      <div class="queue-hero-top">
-        <div>
-          <div class="queue-hero-eyebrow">Live queue</div>
-          <h2 class="queue-hero-title">{{ data.session?.name || 'Queue' }}</h2>
-          <div class="queue-hero-subtitle">Live queue + courts</div>
-        </div>
-        <div class="queue-hero-actions">
-          <div class="queue-live-pill">
-            <span class="queue-live-dot" aria-hidden="true"></span>
+
+    <!-- Hero header -->
+    <div class="pq-hero">
+      <div class="pq-hero-inner">
+        <div class="pq-hero-top">
+          <div>
+            <div class="pq-eyebrow">Live Queue</div>
+            <h1 class="pq-title">{{ data.session?.name || 'Queue' }}</h1>
+          </div>
+          <div class="pq-live-pill">
+            <span class="pq-live-dot" aria-hidden="true"></span>
             Live
           </div>
-          <button class="button ghost button-compact queue-hero-action" @click="openRankings">
+        </div>
+        <div class="pq-hero-actions">
+          <button class="pq-action-btn" @click="openRankings">
             Rankings
-            <span v-if="totalPlayers" class="queue-hero-count">{{ totalPlayers }}</span>
+            <span v-if="totalPlayers" class="pq-action-count">{{ totalPlayers }}</span>
           </button>
-          <button class="button ghost button-compact queue-hero-action" @click="openBracket">
-            Bracket
-          </button>
+          <button class="pq-action-btn" @click="openBracket">Bracket</button>
         </div>
-      </div>
-      <div class="queue-hero-stats">
-        <div class="queue-stat">
-          <span>Courts</span>
-          <strong>{{ data.courts?.length || 0 }}</strong>
-        </div>
-        <div class="queue-stat">
-          <span>Matches</span>
-          <strong>{{ queueMatches.length }}</strong>
+        <div class="pq-stats">
+          <div class="pq-stat">
+            <span class="pq-stat-label">Courts</span>
+            <strong class="pq-stat-value">{{ data.courts?.length || 0 }}</strong>
+          </div>
+          <div class="pq-stat-divider"></div>
+          <div class="pq-stat">
+            <span class="pq-stat-label">In Queue</span>
+            <strong class="pq-stat-value">{{ queueMatches.length }}</strong>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="card stack queue-section">
-      <div class="queue-section-head">
-        <div class="section-title">Now Playing</div>
-        <span class="queue-section-badge">{{ data.courts?.length || 0 }} courts</span>
+    <!-- Now Playing -->
+    <div class="pq-section">
+      <div class="pq-section-head">
+        <div class="pq-section-title">Now Playing</div>
+        <span class="pq-section-count">{{ data.courts?.length || 0 }} courts</span>
       </div>
-      <div v-if="data.courts?.length === 0" class="subtitle">No courts yet.</div>
-      <div v-else class="grid courts-grid">
+      <div v-if="!data.courts?.length" class="pq-empty">No courts active yet.</div>
+      <div v-else class="courts-grid">
         <div
-          v-for="court in data.courts || []"
+          v-for="court in data.courts"
           :key="court.court.id"
-          class="card court-card"
+          class="court-card"
           :class="{ playing: court.currentMatch }"
         >
-          <div class="court-head">
-            <div class="court-title">
-              <strong class="court-name">{{ court.court.name }}</strong>
-            </div>
-            <span class="badge court-status" :class="courtStatusClass(court)">
+          <div class="court-card-head">
+            <strong class="court-name">{{ court.court.name }}</strong>
+            <span class="court-status-badge" :class="courtStatusClass(court)">
               {{ statusLabel(court.status) }}
             </span>
           </div>
 
-          <div class="court-meta">
-            <div class="court-meta-block">
-              <div class="subtitle">Start</div>
-              <strong>{{ formatTime(court.currentMatch?.startedAt) }}</strong>
-            </div>
-            <div class="court-meta-block">
-              <div class="subtitle">Elapsed</div>
-              <strong>{{ elapsedTime(court.currentMatch?.startedAt) }}</strong>
-            </div>
-          </div>
-
-          <div class="court-players">
-            <div class="subtitle">Players</div>
-            <div v-if="court.currentMatch" class="pill-row court-pill-row">
-              <span class="pill team-a">{{ teamLabel(court.currentMatch, 1) || "—" }}</span>
+          <div v-if="court.currentMatch" class="court-match">
+            <div class="court-match-teams">
+              <span class="court-team team-a">{{ teamLabel(court.currentMatch, 1) || "—" }}</span>
               <span class="court-vs">vs</span>
-              <span class="pill team-b">{{ teamLabel(court.currentMatch, 2) || "—" }}</span>
+              <span class="court-team team-b">{{ teamLabel(court.currentMatch, 2) || "—" }}</span>
             </div>
-            <div v-else class="subtitle muted">No match yet</div>
+            <div class="court-times">
+              <span>{{ formatTime(court.currentMatch?.startedAt) }}</span>
+              <span class="court-elapsed">{{ elapsedTime(court.currentMatch?.startedAt) }}</span>
+            </div>
           </div>
+          <div v-else class="court-idle">Waiting for next match</div>
         </div>
       </div>
     </div>
 
-    <div class="card stack queue-section">
-      <div class="queue-section-head">
-        <div class="section-title">Upcoming Matches</div>
-        <span class="queue-section-badge">{{ queueMatches.length }} in queue</span>
+    <!-- Upcoming Matches -->
+    <div class="pq-section">
+      <div class="pq-section-head">
+        <div class="pq-section-title">Upcoming Matches</div>
+        <span class="pq-section-count">{{ queueMatches.length }} queued</span>
       </div>
-      <div v-if="queueMatches.length === 0" class="subtitle">No queued matches.</div>
-      <div v-for="(match, idx) in queueMatches" :key="match.id" class="queue-card">
-        <div class="queue-card-head">
-          <strong>#{{ idx + 1 }} {{ match.typeLabel }}</strong>
-          <span class="subtitle">Requested {{ formatTime(match.requestedAt) }}</span>
-        </div>
-        <div class="queue-vs">
-          <div class="queue-team">
-            <strong>{{ match.teamA.join(' + ') }}</strong>
+      <div v-if="queueMatches.length === 0" class="pq-empty">No matches queued.</div>
+      <div v-else class="queue-list">
+        <div v-for="(match, idx) in queueMatches" :key="match.id" class="queue-item">
+          <div class="queue-item-meta">
+            <span class="queue-position">#{{ idx + 1 }}</span>
+            <span class="queue-type">{{ match.typeLabel }}</span>
+            <span class="queue-time">{{ formatTime(match.requestedAt) }}</span>
           </div>
-          <span class="queue-vs-pill">vs</span>
-          <div class="queue-team">
-            <strong>{{ match.teamB.join(' + ') }}</strong>
+          <div class="queue-matchup">
+            <span class="queue-team">{{ match.teamA.join(' + ') }}</span>
+            <span class="queue-vs-pill">vs</span>
+            <span class="queue-team">{{ match.teamB.join(' + ') }}</span>
           </div>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- Rankings modal -->
   <div v-if="showRankingsModal" class="modal-backdrop">
     <div class="modal-card rank-modal rank-board">
-      <div class="rank-hero">
+      <div class="rank-modal-head">
         <div>
-          <div class="subtitle">Current session</div>
-          <div class="rank-title">{{ rankTitle }}</div>
+          <p class="rank-modal-session">{{ data.session?.name || "Session" }}</p>
+          <h3 class="rank-modal-title">{{ rankTitle }}</h3>
+          <p class="rank-modal-count">{{ totalCount }} {{ summaryLabel }}</p>
         </div>
-        <div class="rank-hero-meta">
-          <div class="rank-chip">{{ data.session?.name || "Session" }}</div>
-          <div class="rank-chip">{{ totalCount }} {{ summaryLabel }}</div>
-        </div>
+        <button class="button ghost button-compact" @click="closeRankings">Close</button>
       </div>
-      <div v-if="showPairToggle || showTeamToggle" class="segmented rank-toggle">
-        <button
-          class="segment"
-          :class="{ active: rankMode === 'players' }"
-          type="button"
-          @click="rankMode = 'players'"
-        >
-          Players
-        </button>
-        <button
-          class="segment"
-          :class="{ active: rankMode === 'pairs' }"
-          type="button"
-          @click="rankMode = 'pairs'"
-          v-if="showPairToggle"
-        >
-          Pairs
-        </button>
-        <button
-          class="segment"
-          :class="{ active: rankMode === 'teams' }"
-          type="button"
-          @click="rankMode = 'teams'"
-          v-if="showTeamToggle"
-        >
-          Teams
-        </button>
+
+      <div v-if="showPairToggle || showTeamToggle" class="rank-tab-bar">
+        <button class="rank-tab" :class="{ active: rankMode === 'players' }" type="button" @click="rankMode = 'players'">Players</button>
+        <button v-if="showPairToggle" class="rank-tab" :class="{ active: rankMode === 'pairs' }" type="button" @click="rankMode = 'pairs'">Pairs</button>
+        <button v-if="showTeamToggle" class="rank-tab" :class="{ active: rankMode === 'teams' }" type="button" @click="rankMode = 'teams'">Teams</button>
       </div>
-      <div v-if="pairRankLoading && isPairView" class="subtitle">Loading pairs…</div>
-      <div v-else-if="teamRankLoading && isTeamView" class="subtitle">Loading teams…</div>
-      <div v-else-if="rankedRows.length === 0" class="subtitle">No stats yet.</div>
+
+      <div v-if="pairRankLoading && isPairView" class="rank-loading">Loading pairs…</div>
+      <div v-else-if="teamRankLoading && isTeamView" class="rank-loading">Loading teams…</div>
+      <div v-else-if="rankedRows.length === 0" class="rank-loading">No stats yet.</div>
       <template v-else>
         <div class="rank-podium">
           <div
@@ -159,11 +131,11 @@
             :class="`podium-${rankClass(row.rank)}`"
             :style="{ animationDelay: `${idx * 80}ms` }"
           >
-            <div class="rank-corner-icon">{{ rankCornerIcon(row.rank) }}</div>
-            <div class="rank-medal">
-              <span class="rank-number">{{ row.rank }}</span>
+            <div class="podium-top-row">
+              <div class="rank-medal"><span class="rank-number">{{ row.rank }}</span></div>
+              <span class="podium-icon">{{ rankCornerIcon(row.rank) }}</span>
+              <div class="rank-name podium-name">{{ row.name }}</div>
             </div>
-            <div class="rank-name">{{ row.name }}</div>
             <div class="rank-mini-stats">
               <span>GP {{ row.gamesPlayed }}</span>
               <span>W {{ row.wins }}</span>
@@ -173,7 +145,6 @@
             </div>
           </div>
         </div>
-
         <div class="rank-list rank-modal-body">
           <div
             v-for="(row, idx) in restRows"
@@ -182,9 +153,7 @@
             :style="{ animationDelay: `${(idx + 3) * 40}ms` }"
           >
             <div class="rank-row-left">
-              <div class="rank-row-badge" :class="rankClass(row.rank)">
-                <span class="rank-number">{{ row.rank }}</span>
-              </div>
+              <div class="rank-row-badge" :class="rankClass(row.rank)"><span class="rank-number">{{ row.rank }}</span></div>
               <div class="rank-row-name">{{ row.name }}</div>
             </div>
             <div class="rank-row-icon">{{ rankCornerIcon(row.rank) }}</div>
@@ -198,23 +167,23 @@
           </div>
         </div>
       </template>
-      <button class="button" @click="closeRankings">Close</button>
     </div>
   </div>
 
+  <!-- Bracket modal -->
   <div v-if="showBracketModal" class="modal-backdrop bracket-backdrop">
     <div class="modal-card bracket-modal">
       <div class="bracket-modal-head">
-        <div>
-          <div class="subtitle">Current session</div>
-          <h3>Bracket</h3>
+        <div class="bracket-modal-head-text">
+          <p class="rank-modal-session">{{ data.session?.name || "Session" }}</p>
+          <h3 class="bracket-modal-title">Bracket</h3>
         </div>
         <button class="button ghost button-compact" @click="closeBracket">Close</button>
       </div>
-      <div v-if="bracketLoading" class="subtitle">Loading bracket…</div>
+      <div v-if="bracketLoading" class="rank-loading">Loading bracket…</div>
       <div v-else-if="bracketError" class="notice">{{ bracketError }}</div>
       <div v-else class="bracket-modal-body">
-        <div v-if="!bracketData || bracketData.error" class="subtitle">
+        <div v-if="!bracketData || bracketData.error" class="rank-loading">
           {{ bracketData?.error || "Bracket unavailable." }}
         </div>
         <div v-else class="bracket-surface">
@@ -223,35 +192,30 @@
           </div>
           <div v-else-if="bracketData.type === 'double'" class="tournament-bracket-stack">
             <div class="tournament-bracket-block">
-              <div class="subtitle">Winners Bracket</div>
+              <div class="bracket-block-label">Winners Bracket</div>
               <div class="tournament-bracket">
                 <TournamentBracket v-bind="bracketVisuals" :rounds="bracketData.winners" />
               </div>
             </div>
             <div v-if="bracketData.losers?.length" class="tournament-bracket-block">
-              <div class="subtitle">Losers Bracket</div>
+              <div class="bracket-block-label">Losers Bracket</div>
               <div class="tournament-bracket">
                 <TournamentBracket v-bind="bracketVisuals" :rounds="bracketData.losers" />
               </div>
             </div>
             <div v-if="bracketData.finals?.length" class="tournament-bracket-block">
-              <div class="subtitle">Grand Final</div>
+              <div class="bracket-block-label">Grand Final</div>
               <div class="tournament-bracket">
                 <TournamentBracket v-bind="bracketVisuals" :rounds="bracketData.finals" />
               </div>
             </div>
           </div>
-          <div v-else class="stack round-robin">
-            <div v-if="roundRobinStandings.length" class="round-robin-standings">
-              <div class="subtitle">Standings</div>
+          <div v-else class="round-robin-view">
+            <div v-if="roundRobinStandings.length" class="rr-standings-block">
+              <div class="bracket-block-label">Standings</div>
               <div class="standings-table">
                 <div class="standings-row head">
-                  <span>#</span>
-                  <span>Team</span>
-                  <span>W</span>
-                  <span>L</span>
-                  <span>GP</span>
-                  <span>PTS</span>
+                  <span>#</span><span>Team</span><span>W</span><span>L</span><span>GP</span><span>PTS</span>
                 </div>
                 <div v-for="team in roundRobinStandings" :key="team.id" class="standings-row">
                   <span class="standings-rank">{{ team.rank }}</span>
@@ -264,20 +228,16 @@
               </div>
             </div>
             <div v-for="round in bracketData.rounds" :key="round.name" class="round-robin-round">
-              <div class="subtitle">{{ round.name }}</div>
-              <div class="stack">
+              <div class="bracket-block-label">{{ round.name }}</div>
+              <div class="rr-round-matches">
                 <div v-for="match in round.matchs" :key="match.id" class="match-card simple">
                   <div class="match-line">
                     <span class="match-name">{{ match.team1?.name || "-" }}</span>
-                    <span v-if="roundRobinScore(match, 1) != null" class="match-score-pill">
-                      {{ roundRobinScore(match, 1) }}
-                    </span>
+                    <span v-if="roundRobinScore(match, 1) != null" class="match-score-pill">{{ roundRobinScore(match, 1) }}</span>
                   </div>
                   <div class="match-line">
                     <span class="match-name">{{ match.team2?.name || "-" }}</span>
-                    <span v-if="roundRobinScore(match, 2) != null" class="match-score-pill">
-                      {{ roundRobinScore(match, 2) }}
-                    </span>
+                    <span v-if="roundRobinScore(match, 2) != null" class="match-score-pill">{{ roundRobinScore(match, 2) }}</span>
                   </div>
                 </div>
               </div>
@@ -322,12 +282,12 @@ const bracketOverrides = ref([]);
 const bracketType = ref("single");
 const bracketVisuals = {
   format: "default",
-  textColor: "#1f1c17",
-  titleColor: "#5b5248",
+  textColor: "#1e293b",
+  titleColor: "#64748b",
   teamBackgroundColor: "transparent",
-  highlightTeamBackgroundColor: "rgba(15, 157, 138, 0.08)",
-  scoreBackgroundColor: "#5c9cff",
-  winnerScoreBackgroundColor: "#5c9cff"
+  highlightTeamBackgroundColor: "rgba(21, 101, 192, 0.08)",
+  scoreBackgroundColor: "#1565c0",
+  winnerScoreBackgroundColor: "#00897b"
 };
 
 const bracketMatchFormat = computed(() => bracketSession.value?.gameType || "doubles");
@@ -1234,3 +1194,539 @@ onUnmounted(() => {
   if (timerId) clearInterval(timerId);
 });
 </script>
+
+<style scoped>
+/* ── Page shell ──────────────────────────────────────────────────── */
+.public-queue {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: #f0f4f8;
+  margin-bottom: -80px; /* cancel app-shell bottom padding for mobile nav */
+}
+
+/* ── Pull indicator ──────────────────────────────────────────────── */
+.pull-indicator {
+  text-align: center;
+  font-size: 13px;
+  color: #ffffff;
+  background: #1565c0;
+  padding: 6px;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.2s, opacity 0.2s, padding 0.2s;
+}
+
+.pull-indicator.active {
+  max-height: 40px;
+  opacity: 1;
+}
+
+/* ── Hero ────────────────────────────────────────────────────────── */
+.pq-hero {
+  background: linear-gradient(135deg, #1a237e 0%, #1565c0 55%, #00695c 100%);
+  color: #ffffff;
+  padding: 0 0 20px;
+  margin: 0 -16px;
+}
+
+.pq-hero-inner {
+  padding: 24px 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pq-hero-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pq-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.75;
+  margin-bottom: 4px;
+}
+
+.pq-title {
+  font-size: 26px;
+  font-weight: 800;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.pq-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pq-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #69f0ae;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.pq-hero-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.pq-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1.5px solid rgba(255,255,255,0.35);
+  background: rgba(255,255,255,0.12);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.pq-action-btn:hover {
+  background: rgba(255,255,255,0.22);
+}
+
+.pq-action-count {
+  background: rgba(255,255,255,0.25);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pq-stats {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding-top: 4px;
+}
+
+.pq-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pq-stat-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.65;
+  font-weight: 600;
+}
+
+.pq-stat-value {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.pq-stat-divider {
+  width: 1px;
+  height: 32px;
+  background: rgba(255,255,255,0.2);
+}
+
+/* ── Sections ────────────────────────────────────────────────────── */
+.pq-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 0;
+  border-bottom: 1px solid #d8e2ee;
+}
+
+.pq-section:last-child {
+  border-bottom: none;
+}
+
+.pq-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pq-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+}
+
+.pq-section-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.pq-empty {
+  font-size: 14px;
+  color: #94a3b8;
+  padding: 8px 0;
+}
+
+/* ── Court cards ─────────────────────────────────────────────────── */
+.courts-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 480px) {
+  .courts-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+}
+
+.court-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.court-card.playing {
+  border-color: #1565c0;
+  box-shadow: 0 0 0 2px rgba(21,101,192,0.1);
+}
+
+.court-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.court-name {
+  font-size: 15px;
+  color: #1e293b;
+}
+
+.court-status-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.court-status-badge.live {
+  background: rgba(21,101,192,0.1);
+  color: #1565c0;
+}
+
+.court-status-badge.warning {
+  background: rgba(180,95,95,0.1);
+  color: #b45f5f;
+}
+
+.court-match {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.court-match-teams {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.court-team {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.court-team.team-a {
+  background: rgba(21,101,192,0.08);
+  color: #1565c0;
+}
+
+.court-team.team-b {
+  background: rgba(0,137,123,0.08);
+  color: #00897b;
+}
+
+.court-vs {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.court-times {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.court-elapsed {
+  font-weight: 600;
+  color: #64748b;
+}
+
+.court-idle {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+/* ── Queue list ──────────────────────────────────────────────────── */
+.queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.queue-item {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.queue-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.queue-position {
+  font-size: 13px;
+  font-weight: 800;
+  color: #1565c0;
+  min-width: 28px;
+}
+
+.queue-type {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  flex: 1;
+}
+
+.queue-time {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.queue-matchup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.queue-team {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.queue-vs-pill {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #94a3b8;
+  padding: 2px 6px;
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+/* ── Rankings modal size fix ─────────────────────────────────────── */
+:deep(.rank-modal.modal-card) {
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Podium two-row layout ───────────────────────────────────────── */
+:deep(.rank-podium-card) {
+  gap: 6px;
+}
+
+.podium-top-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.podium-icon {
+  font-size: 15px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.podium-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+/* ── Rankings modal extras ───────────────────────────────────────── */
+.rank-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.rank-modal-session {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 0 0 2px;
+}
+
+.rank-modal-title {
+  font-size: 20px;
+  font-weight: 800;
+  margin: 0 0 2px;
+}
+
+.rank-modal-count {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+}
+
+.rank-tab-bar {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid #e2e8f0;
+  margin-bottom: 16px;
+}
+
+.rank-tab {
+  padding: 7px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.rank-tab.active {
+  color: #1565c0;
+  border-bottom-color: #1565c0;
+}
+
+.rank-loading {
+  font-size: 14px;
+  color: #94a3b8;
+  padding: 16px 0;
+}
+
+/* ── Bracket modal overrides ─────────────────────────────────────── */
+:deep(.bracket-backdrop) {
+  z-index: 60;
+}
+
+:deep(.bracket-modal) {
+  background: linear-gradient(180deg, #f0f4f8 0%, #e8f0fb 100%);
+}
+
+:deep(.bracket-modal-head) {
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 14px;
+  margin-bottom: 4px;
+}
+
+.bracket-modal-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bracket-modal-title {
+  font-size: 20px;
+  font-weight: 800;
+  margin: 0;
+  color: #1e293b;
+}
+
+/* ── Bracket modal extras ────────────────────────────────────────── */
+.bracket-block-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.tournament-bracket-block {
+  margin-bottom: 28px;
+}
+
+.round-robin-view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.rr-standings-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.round-robin-round {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rr-round-matches {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+</style>

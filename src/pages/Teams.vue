@@ -1,4 +1,5 @@
 <template>
+  <div>
   <div class="teams-page">
     <!-- Page header -->
     <div class="teams-header">
@@ -72,6 +73,7 @@
         <button class="button" @click="createTeam">Create</button>
       </div>
     </div>
+  </div>
   </div>
 </template>
 

@@ -23,7 +23,7 @@ const routes = [
   { path: "/login", component: Login, meta: { public: true } },
   { path: "/register", component: Register, meta: { public: true } },
   { path: "/p/:token", component: PublicPlayer, meta: { public: true } },
-  { path: "/q/:token", component: PublicQueue, meta: { public: true } },
+  { path: "/q/:token", component: PublicQueue, meta: { public: true, hideHeader: true } },
   { path: "/join/:token", component: JoinSession, meta: { public: true } },
   { path: "/board/:sessionId", component: PublicBoard, meta: { public: true } },
   { path: "/check-email", component: CheckEmail, meta: { public: true } },

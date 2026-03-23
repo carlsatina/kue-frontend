@@ -1,4 +1,5 @@
 <template>
+  <div>
   <div class="desk">
 
     <!-- ── Top bar ─────────────────────────────────────────────── -->
@@ -326,6 +327,7 @@
         <button class="button" @click="saveEditSession">Save</button>
       </div>
     </div>
+  </div>
   </div>
 </template>
 

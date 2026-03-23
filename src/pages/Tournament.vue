@@ -1,4 +1,5 @@
 <template>
+  <div>
   <div class="tournament-page">
     <!-- Page header -->
     <div class="tournament-header">
@@ -272,6 +273,7 @@
       </div>
       <button class="button ghost button-compact" @click="useJoinOrder">Use join order</button>
     </div>
+  </div>
   </div>
 </template>
 
