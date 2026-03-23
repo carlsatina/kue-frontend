@@ -145,7 +145,7 @@ export function useDashboard() {
       regularJoinLimit.value = 0;
       newJoinerLimit.value = 0;
     } finally {
-      window.dispatchEvent(new Event("sessions:updated"));
+      document.dispatchEvent(new Event("sessions:updated"));
     }
   }
 

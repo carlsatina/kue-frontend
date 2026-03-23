@@ -1,4 +1,5 @@
 <template>
+  <div>
   <div class="card auth-card stack">
     <h2>Create Queue Master Account</h2>
     <p class="subtitle">Open registration for organizers and staff.</p>
@@ -61,6 +62,7 @@
     title="Creating Your Team Pass"
     message="Saving your account and preparing your first session."
   />
+  </div>
 </template>
 
 <script setup>

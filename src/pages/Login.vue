@@ -1,14 +1,16 @@
 <template>
+  <div>
   <form class="card auth-card stack" @submit.prevent="handleLogin">
     <h2>Queue Master Login</h2>
     <p class="subtitle">Sign in to run today’s session.</p>
-    <input class="input" v-model="email" type="email" placeholder="Email" :disabled="isLoggingIn" />
+    <input class="input" v-model="email" type="email" placeholder="Email" autocomplete="email" :disabled="isLoggingIn" />
     <div class="input-wrap">
       <input
         class="input"
         v-model="password"
         :type="showPassword ? 'text' : 'password'"
         placeholder="Password"
+        autocomplete="current-password"
         :disabled="isLoggingIn"
       />
       <button
@@ -44,6 +46,7 @@
     title="Starting the Match"
     message="Warming up the court and syncing your queue."
   />
+  </div>
 </template>
 
 <script setup>
