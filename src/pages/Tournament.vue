@@ -1,214 +1,191 @@
 <template>
-  <div class="page-grid with-sidebar bracket-page">
-    <div class="page-main stack">
-      <div v-if="session" class="card stack live-surface">
-        <div class="subtitle compact">
-          Tip: click a team to advance it. Click a match to edit scores or winner.
-        </div>
-        <div v-if="overrideError" class="notice">{{ overrideError }}</div>
-        <div v-if="!bracketData || bracketData.error" class="subtitle">
-          {{ bracketData?.error || "Select a bracket type to generate." }}
-        </div>
-        <div v-else ref="bracketRef" class="bracket-surface">
-          <div v-if="bracketType === 'single'" class="tournament-bracket">
-            <TournamentBracket
-              v-bind="bracketVisuals"
-              :rounds="bracketData.rounds"
-              @onMatchClick="openMatchEditor"
-              @onParticipantClick="advanceFromClick"
-            />
-          </div>
-
-          <div v-else-if="bracketType === 'double'" class="tournament-bracket-stack">
-            <div class="tournament-bracket-block">
-              <div class="subtitle">Winners Bracket</div>
-              <div class="tournament-bracket">
-                <TournamentBracket
-                  v-bind="bracketVisuals"
-                  :rounds="bracketData.winners"
-                  @onMatchClick="openMatchEditor"
-                  @onParticipantClick="advanceFromClick"
-                />
-              </div>
-            </div>
-            <div v-if="bracketData.losers?.length" class="tournament-bracket-block">
-              <div class="subtitle">Losers Bracket</div>
-              <div class="tournament-bracket">
-                <TournamentBracket
-                  v-bind="bracketVisuals"
-                  :rounds="bracketData.losers"
-                  @onMatchClick="openMatchEditor"
-                  @onParticipantClick="advanceFromClick"
-                />
-              </div>
-            </div>
-            <div v-if="bracketData.finals?.length" class="tournament-bracket-block">
-              <div class="subtitle">Grand Final</div>
-              <div class="tournament-bracket">
-                <TournamentBracket
-                  v-bind="bracketVisuals"
-                  :rounds="bracketData.finals"
-                  @onMatchClick="openMatchEditor"
-                  @onParticipantClick="advanceFromClick"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div v-else class="stack round-robin">
-            <div v-if="showTeamStats" class="round-robin-standings">
-              <div class="subtitle">Team statistics</div>
-              <div v-if="teamStats.length" class="standings-table">
-                <div class="standings-row head">
-                  <span>#</span>
-                  <span>Team</span>
-                  <span>W</span>
-                  <span>L</span>
-                  <span>GP</span>
-                  <span>PTS</span>
-                </div>
-                <div v-for="team in teamStats" :key="team.id" class="standings-row">
-                  <span class="standings-rank">{{ team.rank }}</span>
-                  <span class="standings-name">{{ team.name }}</span>
-                  <span>{{ team.wins }}</span>
-                  <span>{{ team.losses }}</span>
-                  <span>{{ team.gamesPlayed }}</span>
-                  <span class="standings-points">{{ team.points }}</span>
-                </div>
-              </div>
-              <div v-else class="subtitle compact">No team stats yet.</div>
-            </div>
-            <div v-if="showPairStats" class="round-robin-standings">
-              <div class="subtitle">Pair statistics</div>
-              <div v-if="pairStats.length" class="standings-table">
-                <div class="standings-row head">
-                  <span>#</span>
-                  <span>Pair</span>
-                  <span>W</span>
-                  <span>L</span>
-                  <span>GP</span>
-                  <span>PTS</span>
-                </div>
-                <div v-for="pair in pairStats" :key="pair.id" class="standings-row">
-                  <span class="standings-rank">{{ pair.rank }}</span>
-                  <span class="standings-name">{{ pair.name }}</span>
-                  <span>{{ pair.wins }}</span>
-                  <span>{{ pair.losses }}</span>
-                  <span>{{ pair.gamesPlayed }}</span>
-                  <span class="standings-points">{{ pair.points }}</span>
-                </div>
-              </div>
-              <div v-else class="subtitle compact">No pair stats yet.</div>
-            </div>
-            <div v-for="round in bracketData.rounds" :key="round.name" class="round-robin-round">
-              <div class="subtitle">{{ round.name }}</div>
-              <div class="stack">
-                <div v-for="match in round.matchs" :key="match.id" class="match-card simple">
-                  <div class="match-line">
-                    <span class="match-name">{{ match.team1?.name || "-" }}</span>
-                    <span v-if="roundRobinScore(match, 1) != null" class="match-score-pill">
-                      {{ roundRobinScore(match, 1) }}
-                    </span>
-                  </div>
-                  <div class="match-line">
-                    <span class="match-name">{{ match.team2?.name || "-" }}</span>
-                    <span v-if="roundRobinScore(match, 2) != null" class="match-score-pill">
-                      {{ roundRobinScore(match, 2) }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <button
-            class="icon-button fullscreen-button"
-            @click="toggleFullscreen"
-            :aria-label="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
-          >
-            <svg v-if="!isFullscreen" viewBox="0 0 24 24" role="img">
-              <path d="M4 9V4h5v2H6v3H4zm10-5h5v5h-2V6h-3V4zM4 15h2v3h3v2H4v-5zm13 3v-3h2v5h-5v-2h3z"></path>
-            </svg>
-            <svg v-else viewBox="0 0 24 24" role="img">
-              <path d="M6 6h3V4H4v5h2V6zm9 0v3h2V4h-5v2h3zM6 18v-3H4v5h5v-2H6zm11-3h-2v3h-3v2h5v-5z"></path>
-            </svg>
-          </button>
-        </div>
+  <div class="tournament-page">
+    <!-- Page header -->
+    <div class="tournament-header">
+      <div>
+        <h1 class="tournament-title">Bracket</h1>
+        <p class="text-muted" v-if="session">{{ session.name }} · {{ matchFormatLabel }}</p>
+        <p class="text-muted" v-else>Open a session to generate a bracket.</p>
       </div>
-      <div v-else class="card live-surface">
-        <div class="subtitle">Open a session to generate a bracket.</div>
+      <div v-if="session" class="tournament-header-chips">
+        <span class="info-chip">{{ joinedPlayers.length }} players</span>
+        <span v-if="matchFormat === 'doubles'" class="info-chip">{{ entrants.length }} teams</span>
       </div>
     </div>
 
-    <div class="page-side stack">
-      <div class="card stack live-surface print-hidden tournament-card">
-        <div class="tournament-head">
-          <div>
-            <div class="section-title">Tournament</div>
-            <div class="subtitle compact">Manage bracket settings</div>
-          </div>
-        </div>
-        <div v-if="!session" class="subtitle">No active session.</div>
-        <div v-else class="tournament-body">
-          <div class="tournament-block">
-            <label class="field-label">Bracket type</label>
-            <div class="tournament-row">
-              <select class="input" v-model="bracketType">
-                <option value="single">Single Elimination</option>
-                <option value="double">Double Elimination</option>
-                <option value="round_robin">Round Robin</option>
-              </select>
-              <label class="radio-row default-bracket-toggle">
-                <input
-                  type="checkbox"
-                  v-model="defaultBracketEnabled"
-                  :disabled="!session"
-                  @change="handleDefaultToggle"
-                />
-                Default
-              </label>
-            </div>
-          </div>
-
-          <div class="tournament-stats">
-            <div class="tournament-stat">
-              <div class="subtitle">Players</div>
-              <strong>{{ joinedPlayers.length }}</strong>
-            </div>
-            <div v-if="matchFormat === 'doubles'" class="tournament-stat">
-              <div class="subtitle">Teams</div>
-              <strong>{{ entrants.length }}</strong>
-            </div>
-            <div class="tournament-stat">
-              <div class="subtitle">Game type</div>
-              <strong>{{ matchFormatLabel }}</strong>
-            </div>
-          </div>
-
-          <div v-if="session && matchFormat === 'singles'" class="tournament-tool">
-            <div>
-              <div class="subtitle">Seeding</div>
-              <strong>{{ seedOrderActive ? "Manual" : "Join order" }}</strong>
-            </div>
-            <button class="button ghost button-compact" @click="openSeedModal">Arrange</button>
-          </div>
-          <div v-if="session && matchFormat === 'doubles'" class="tournament-tool vertical">
-            <div>
-              <div class="subtitle">Pairing</div>
-              <strong>{{ manualTeams.length }} manual pairs</strong>
-            </div>
-            <router-link class="button button-compact blue-gradient no-wrap" to="/pairing">
-              Open Pairing
-            </router-link>
-          </div>
-
-          <div class="tournament-actions">
-            <button class="button ghost button-compact" @click="load">Refresh</button>
-            <button class="button button-compact" @click="printBracket">Print</button>
-            <button class="button ghost button-compact" @click="exportBracket">Export JSON</button>
-          </div>
-          <div v-if="error" class="notice">{{ error }}</div>
-        </div>
+    <!-- Settings strip -->
+    <div v-if="session" class="tournament-settings print-hidden">
+      <div class="settings-left">
+        <select class="input settings-select" v-model="bracketType">
+          <option value="single">Single Elimination</option>
+          <option value="double">Double Elimination</option>
+          <option value="round_robin">Round Robin</option>
+        </select>
+        <label class="radio-row default-bracket-toggle">
+          <input
+            type="checkbox"
+            v-model="defaultBracketEnabled"
+            :disabled="!session"
+            @change="handleDefaultToggle"
+          />
+          <span>Default</span>
+        </label>
       </div>
+      <div class="settings-right">
+        <button
+          v-if="matchFormat === 'singles'"
+          class="button ghost button-compact"
+          @click="openSeedModal"
+        >{{ seedOrderActive ? "Seeds ✓" : "Arrange Seeds" }}</button>
+        <router-link
+          v-if="matchFormat === 'doubles'"
+          class="button button-compact"
+          to="/pairing"
+        >Pairing{{ manualTeams.length ? ` (${manualTeams.length})` : '' }}</router-link>
+        <button class="button ghost button-compact" @click="load">Refresh</button>
+        <button class="button ghost button-compact" @click="printBracket">Print</button>
+        <button class="button ghost button-compact" @click="exportBracket">Export</button>
+      </div>
+    </div>
+
+    <div v-if="overrideError" class="notice">{{ overrideError }}</div>
+    <div v-if="error" class="notice">{{ error }}</div>
+
+    <!-- Bracket area -->
+    <template v-if="session">
+      <div v-if="!bracketData || bracketData.error" class="empty-state">
+        {{ bracketData?.error || "Select a bracket type to generate." }}
+      </div>
+      <div v-else ref="bracketRef" class="bracket-surface">
+        <p class="bracket-tip print-hidden">Tip: click a team to advance it. Click a match to edit scores or winner.</p>
+
+        <div v-if="bracketType === 'single'" class="tournament-bracket">
+          <TournamentBracket
+            v-bind="bracketVisuals"
+            :rounds="bracketData.rounds"
+            @onMatchClick="openMatchEditor"
+            @onParticipantClick="advanceFromClick"
+          />
+        </div>
+
+        <div v-else-if="bracketType === 'double'" class="tournament-bracket-stack">
+          <div class="tournament-bracket-block">
+            <div class="bracket-block-label">Winners Bracket</div>
+            <div class="tournament-bracket">
+              <TournamentBracket
+                v-bind="bracketVisuals"
+                :rounds="bracketData.winners"
+                @onMatchClick="openMatchEditor"
+                @onParticipantClick="advanceFromClick"
+              />
+            </div>
+          </div>
+          <div v-if="bracketData.losers?.length" class="tournament-bracket-block">
+            <div class="bracket-block-label">Losers Bracket</div>
+            <div class="tournament-bracket">
+              <TournamentBracket
+                v-bind="bracketVisuals"
+                :rounds="bracketData.losers"
+                @onMatchClick="openMatchEditor"
+                @onParticipantClick="advanceFromClick"
+              />
+            </div>
+          </div>
+          <div v-if="bracketData.finals?.length" class="tournament-bracket-block">
+            <div class="bracket-block-label">Grand Final</div>
+            <div class="tournament-bracket">
+              <TournamentBracket
+                v-bind="bracketVisuals"
+                :rounds="bracketData.finals"
+                @onMatchClick="openMatchEditor"
+                @onParticipantClick="advanceFromClick"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="round-robin-view">
+          <div v-if="showTeamStats" class="rr-standings-block">
+            <div class="rr-block-label">Team standings</div>
+            <div v-if="teamStats.length" class="standings-table">
+              <div class="standings-row head">
+                <span>#</span>
+                <span>Team</span>
+                <span>W</span>
+                <span>L</span>
+                <span>GP</span>
+                <span>PTS</span>
+              </div>
+              <div v-for="team in teamStats" :key="team.id" class="standings-row">
+                <span class="standings-rank">{{ team.rank }}</span>
+                <span class="standings-name">{{ team.name }}</span>
+                <span>{{ team.wins }}</span>
+                <span>{{ team.losses }}</span>
+                <span>{{ team.gamesPlayed }}</span>
+                <span class="standings-points">{{ team.points }}</span>
+              </div>
+            </div>
+            <p v-else class="text-muted">No team stats yet.</p>
+          </div>
+          <div v-if="showPairStats" class="rr-standings-block">
+            <div class="rr-block-label">Pair standings</div>
+            <div v-if="pairStats.length" class="standings-table">
+              <div class="standings-row head">
+                <span>#</span>
+                <span>Pair</span>
+                <span>W</span>
+                <span>L</span>
+                <span>GP</span>
+                <span>PTS</span>
+              </div>
+              <div v-for="pair in pairStats" :key="pair.id" class="standings-row">
+                <span class="standings-rank">{{ pair.rank }}</span>
+                <span class="standings-name">{{ pair.name }}</span>
+                <span>{{ pair.wins }}</span>
+                <span>{{ pair.losses }}</span>
+                <span>{{ pair.gamesPlayed }}</span>
+                <span class="standings-points">{{ pair.points }}</span>
+              </div>
+            </div>
+            <p v-else class="text-muted">No pair stats yet.</p>
+          </div>
+          <div v-for="round in bracketData.rounds" :key="round.name" class="round-robin-round">
+            <div class="rr-round-label">{{ round.name }}</div>
+            <div class="rr-round-matches">
+              <div v-for="match in round.matchs" :key="match.id" class="match-card simple">
+                <div class="match-line">
+                  <span class="match-name">{{ match.team1?.name || "-" }}</span>
+                  <span v-if="roundRobinScore(match, 1) != null" class="match-score-pill">
+                    {{ roundRobinScore(match, 1) }}
+                  </span>
+                </div>
+                <div class="match-line">
+                  <span class="match-name">{{ match.team2?.name || "-" }}</span>
+                  <span v-if="roundRobinScore(match, 2) != null" class="match-score-pill">
+                    {{ roundRobinScore(match, 2) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button
+          class="icon-button fullscreen-button"
+          @click="toggleFullscreen"
+          :aria-label="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+        >
+          <svg v-if="!isFullscreen" viewBox="0 0 24 24" role="img">
+            <path d="M4 9V4h5v2H6v3H4zm10-5h5v5h-2V6h-3V4zM4 15h2v3h3v2H4v-5zm13 3v-3h2v5h-5v-2h3z"></path>
+          </svg>
+          <svg v-else viewBox="0 0 24 24" role="img">
+            <path d="M6 6h3V4H4v5h2V6zm9 0v3h2V4h-5v2h3zM6 18v-3H4v5h5v-2H6zm11-3h-2v3h-3v2h5v-5z"></path>
+          </svg>
+        </button>
+      </div>
+    </template>
+    <div v-else class="empty-state">
+      Open a session from the home screen to generate a bracket.
     </div>
   </div>
   <div v-if="showMatchEditor" class="modal-backdrop">
@@ -1405,3 +1382,167 @@ watch(showSeedModal, (isOpen) => {
   }
 });
 </script>
+
+<style scoped>
+/* ── Page shell ──────────────────────────────────────────────────── */
+.tournament-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── Header ──────────────────────────────────────────────────────── */
+.tournament-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.tournament-title {
+  font-size: 26px;
+  font-weight: 800;
+  margin: 0 0 4px;
+  color: var(--ink);
+}
+
+.text-muted {
+  font-size: 14px;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.tournament-header-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.info-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(21, 101, 192, 0.08);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── Settings strip ──────────────────────────────────────────────── */
+.tournament-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.settings-select {
+  min-width: 180px;
+  max-width: 240px;
+}
+
+.settings-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (min-width: 640px) {
+  .tournament-settings {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .settings-left {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .settings-right {
+    flex-shrink: 0;
+  }
+}
+
+/* ── Empty / tip ─────────────────────────────────────────────────── */
+.empty-state {
+  font-size: 15px;
+  color: var(--ink-soft);
+  padding: 24px 0;
+}
+
+.bracket-tip {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 0 0 12px;
+}
+
+/* ── Bracket surface ─────────────────────────────────────────────── */
+.bracket-surface {
+  position: relative;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Block labels (double elim / round robin) ────────────────────── */
+.bracket-block-label,
+.rr-block-label,
+.rr-round-label {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  margin-bottom: 10px;
+}
+
+.tournament-bracket-block {
+  margin-bottom: 32px;
+}
+
+/* ── Round robin ─────────────────────────────────────────────────── */
+.round-robin-view {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.rr-standings-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.round-robin-round {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rr-round-matches {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (min-width: 640px) {
+  .rr-round-matches {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 8px;
+  }
+}
+</style>

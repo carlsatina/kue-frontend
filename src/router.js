@@ -12,6 +12,7 @@ import JoinSession from "./pages/JoinSession.vue";
 import Tournament from "./pages/Tournament.vue";
 import Pairing from "./pages/Pairing.vue";
 import Teams from "./pages/Teams.vue";
+import TeamDetail from "./pages/TeamDetail.vue";
 import Profile from "./pages/Profile.vue";
 import CheckEmail from "./pages/CheckEmail.vue";
 import VerifyEmail from "./pages/VerifyEmail.vue";
@@ -35,7 +36,8 @@ const routes = [
   { path: "/tournament", component: Tournament },
   { path: "/pairing", component: Pairing },
   { path: "/team-builder", redirect: "/pairing" },
-  { path: "/teams", component: Teams },
+  { path: "/teams", component: Teams, meta: { depth: 1 } },
+  { path: "/teams/:id", component: TeamDetail, meta: { depth: 2 } },
   { path: "/fees", component: Fees },
   { path: "/profile", component: Profile }
 ];

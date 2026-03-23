@@ -3,64 +3,33 @@
     <header class="header">
       <div class="brand">
         <h1 class="title">Kue</h1>
-        <div class="subtitle">Sassy court control. Fast queues. Instant hype.</div>
+        <div class="brand-subtitle">Court control. Fast queues.</div>
       </div>
+      <!-- Desktop nav lives inside the header -->
       <div v-if="showNav" class="header-center">
-        <nav class="nav" :class="navClass">
+        <nav class="desktop-nav" :class="navClass">
           <router-link to="/" class="nav-item">
-            <span class="nav-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" role="img">
-                <path d="M4 10.5l8-6 8 6v7a2 2 0 0 1-2 2h-4.5v-6h-3v6H6a2 2 0 0 1-2-2v-7z"></path>
-              </svg>
-            </span>
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><path d="M4 10.5l8-6 8 6v7a2 2 0 0 1-2 2h-4.5v-6h-3v6H6a2 2 0 0 1-2-2v-7z"/></svg></span>
             <span class="nav-label">Home</span>
           </router-link>
           <router-link to="/players" class="nav-item">
-            <span class="nav-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" role="img">
-                <circle cx="8" cy="9" r="3"></circle>
-                <circle cx="17" cy="10" r="2.5"></circle>
-                <path d="M3.5 19c0-3 2.5-5 4.5-5s4.5 2 4.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
-                <path d="M13.5 19c.3-2.1 1.9-3.8 4.1-3.8 2.2 0 3.9 1.7 4.1 3.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
-              </svg>
-            </span>
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><circle cx="8" cy="9" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3.5 19c0-3 2.5-5 4.5-5s4.5 2 4.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M13.5 19c.3-2.1 1.9-3.8 4.1-3.8 2.2 0 3.9 1.7 4.1 3.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
             <span class="nav-label">Players</span>
           </router-link>
           <router-link v-if="showTeamsNav" to="/teams" class="nav-item">
-            <span class="nav-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" role="img">
-                <circle cx="7.5" cy="9" r="2.5"></circle>
-                <circle cx="16.5" cy="9" r="2.5"></circle>
-                <path d="M2.5 19c0-2.6 2.2-4.6 5-4.6s5 2 5 4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
-                <path d="M11.5 19c0-2.6 2.2-4.6 5-4.6s5 2 5 4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
-              </svg>
-            </span>
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><circle cx="7.5" cy="9" r="2.5"/><circle cx="16.5" cy="9" r="2.5"/><path d="M2.5 19c0-2.6 2.2-4.6 5-4.6s5 2 5 4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M11.5 19c0-2.6 2.2-4.6 5-4.6s5 2 5 4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
             <span class="nav-label">Teams</span>
           </router-link>
           <router-link to="/rankings" class="nav-item">
-            <span class="nav-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" role="img">
-                <path d="M4 20h4V9H4v11zm6 0h4V4h-4v16zm6 0h4v-7h-4v7z"></path>
-              </svg>
-            </span>
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><path d="M4 20h4V9H4v11zm6 0h4V4h-4v16zm6 0h4v-7h-4v7z"/></svg></span>
             <span class="nav-label">Rank</span>
           </router-link>
           <router-link to="/tournament" class="nav-item">
-            <span class="nav-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" role="img">
-                <path d="M5 4h6v4H9v4h6v-4h-2V4h6v6h-4v4h-6v-4H5V4z"></path>
-              </svg>
-            </span>
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><path d="M5 4h6v4H9v4h6v-4h-2V4h6v6h-4v4h-6v-4H5V4z"/></svg></span>
             <span class="nav-label">Bracket</span>
           </router-link>
           <router-link to="/fees" class="nav-item">
-            <span class="nav-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" role="img">
-                <rect x="3" y="6" width="18" height="12" rx="3"></rect>
-                <path d="M6 12h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
-                <circle cx="16.5" cy="12" r="2.5"></circle>
-              </svg>
-            </span>
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M6 12h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16.5" cy="12" r="2.5"/></svg></span>
             <span class="nav-label">Fees</span>
           </router-link>
         </nav>
@@ -74,23 +43,51 @@
           </select>
         </div>
       </div>
-      <router-link v-if="showProfile" class="button ghost button-compact profile-button" to="/profile">
+      <router-link v-if="showProfile" class="profile-button" to="/profile">
         <span class="profile-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" role="img">
-            <circle cx="12" cy="8" r="3.5"></circle>
-            <path
-              d="M4.5 19c0-3.2 3.2-5.5 7.5-5.5S19.5 15.8 19.5 19"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-            ></path>
+            <circle cx="12" cy="8" r="3.5"/>
+            <path d="M4.5 19c0-3.2 3.2-5.5 7.5-5.5S19.5 15.8 19.5 19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </span>
-        Profile
+        <span class="profile-label">Profile</span>
       </router-link>
     </header>
-    <router-view />
+
+    <router-view v-slot="{ Component }">
+      <transition :name="transitionName">
+        <component :is="Component" :key="route.path" />
+      </transition>
+    </router-view>
+
+    <!-- Mobile bottom nav lives OUTSIDE the header — no sticky/backdrop-filter interference -->
+    <nav v-if="showNav" class="mobile-nav" :class="navClass">
+      <router-link to="/" class="nav-item">
+        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><path d="M4 10.5l8-6 8 6v7a2 2 0 0 1-2 2h-4.5v-6h-3v6H6a2 2 0 0 1-2-2v-7z"/></svg></span>
+        <span class="nav-label">Home</span>
+      </router-link>
+      <router-link to="/players" class="nav-item">
+        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><circle cx="8" cy="9" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3.5 19c0-3 2.5-5 4.5-5s4.5 2 4.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M13.5 19c.3-2.1 1.9-3.8 4.1-3.8 2.2 0 3.9 1.7 4.1 3.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        <span class="nav-label">Players</span>
+      </router-link>
+      <router-link v-if="showTeamsNav" to="/teams" class="nav-item">
+        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><circle cx="7.5" cy="9" r="2.5"/><circle cx="16.5" cy="9" r="2.5"/><path d="M2.5 19c0-2.6 2.2-4.6 5-4.6s5 2 5 4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M11.5 19c0-2.6 2.2-4.6 5-4.6s5 2 5 4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        <span class="nav-label">Teams</span>
+      </router-link>
+      <router-link to="/rankings" class="nav-item">
+        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><path d="M4 20h4V9H4v11zm6 0h4V4h-4v16zm6 0h4v-7h-4v7z"/></svg></span>
+        <span class="nav-label">Rank</span>
+      </router-link>
+      <router-link to="/tournament" class="nav-item">
+        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><path d="M5 4h6v4H9v4h6v-4h-2V4h6v6h-4v4h-6v-4H5V4z"/></svg></span>
+        <span class="nav-label">Bracket</span>
+      </router-link>
+      <router-link to="/fees" class="nav-item">
+        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M6 12h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16.5" cy="12" r="2.5"/></svg></span>
+        <span class="nav-label">Fees</span>
+      </router-link>
+    </nav>
+
     <GameLoadingModal
       v-if="showGlobalLoadingModal"
       title="Loading Match Data"
@@ -101,12 +98,22 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { api, isReadingFromBackend } from "./api.js";
 import { pendingSessionId, selectedSessionId, setPendingSessionId, setSelectedSessionId } from "./state/sessionStore.js";
 import GameLoadingModal from "./components/GameLoadingModal.vue";
 
 const route = useRoute();
+const router = useRouter();
+
+const transitionName = ref("page-fade");
+router.beforeEach((to, from) => {
+  const toDepth = to.meta.depth ?? 1;
+  const fromDepth = from.meta.depth ?? 1;
+  if (toDepth > fromDepth) transitionName.value = "slide-left";
+  else if (toDepth < fromDepth) transitionName.value = "slide-right";
+  else transitionName.value = "page-fade";
+});
 
 const authTick = ref(0);
 const authed = computed(() => {

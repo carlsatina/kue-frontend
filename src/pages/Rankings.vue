@@ -1,118 +1,100 @@
 <template>
-  <div class="page-grid with-sidebar">
-    <div class="page-main stack">
-      <div v-if="session" class="card stack live-surface rank-board">
-        <div class="rank-hero">
-          <div>
-            <div class="subtitle">Live Rankings</div>
-            <div class="rank-title">{{ rankTitle }}</div>
-          </div>
-          <div class="rank-hero-meta">
-            <div class="rank-chip">{{ rankScopeLabel }}</div>
-            <div class="rank-chip">{{ totalCount }} {{ summaryLabel }}</div>
-            <div v-if="isTeamView && champion" class="rank-chip">Champion: {{ champion.name }}</div>
-          </div>
-        </div>
-        <div v-if="showRankToggle" class="segmented rank-toggle">
-          <button
-            class="segment"
-            :class="{ active: rankMode === 'players' }"
-            type="button"
-            @click="rankMode = 'players'"
-          >
-            Players
-          </button>
-          <button
-            v-if="showPairToggle"
-            class="segment"
-            :class="{ active: rankMode === 'pairs' }"
-            type="button"
-            @click="rankMode = 'pairs'"
-          >
-            Pairs
-          </button>
-          <button
-            v-if="showTeamToggle"
-            class="segment"
-            :class="{ active: rankMode === 'teams' }"
-            type="button"
-            @click="rankMode = 'teams'"
-          >
-            Teams
-          </button>
-        </div>
-
-        <div v-if="rankedRows.length === 0" class="subtitle">No stats yet.</div>
-        <template v-else>
-          <div class="rank-podium">
-            <div
-              v-for="(row, idx) in podiumRows"
-              :key="row.id"
-              class="rank-podium-card"
-              :class="`podium-${rankClass(row.rank)}`"
-              :style="{ animationDelay: `${idx * 80}ms` }"
-            >
-              <div class="rank-corner-icon">{{ rankCornerIcon(row.rank) }}</div>
-              <div class="rank-medal">
-                <span class="rank-number">{{ row.rank }}</span>
-              </div>
-              <div class="rank-name">{{ row.name }}</div>
-              <div class="rank-mini-stats">
-                <span>GP {{ row.gamesPlayed }}</span>
-                <span>W {{ row.wins }}</span>
-                <span>L {{ row.losses }}</span>
-                <span v-if="isTeamView">Pts {{ row.points }}</span>
-                <span v-else>{{ winPct(row.winPct) }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="rank-list">
-            <div
-              v-for="(row, idx) in restRows"
-              :key="row.id"
-              class="rank-row"
-              :style="{ animationDelay: `${(idx + 3) * 40}ms` }"
-            >
-              <div class="rank-row-left">
-                <div class="rank-row-badge" :class="rankClass(row.rank)">
-                  <span class="rank-number">{{ row.rank }}</span>
-                </div>
-                <div class="rank-row-name">{{ row.name }}</div>
-              </div>
-              <div class="rank-row-icon">{{ rankCornerIcon(row.rank) }}</div>
-              <div class="rank-row-stats">
-                <span class="rank-pill">GP {{ row.gamesPlayed }}</span>
-                <span class="rank-pill win">W {{ row.wins }}</span>
-                <span class="rank-pill loss">L {{ row.losses }}</span>
-                <span v-if="isTeamView" class="rank-pill pct">Pts {{ row.points }}</span>
-                <span v-else class="rank-pill pct">{{ winPct(row.winPct) }}</span>
-              </div>
-            </div>
-          </div>
-        </template>
+  <div class="rankings-page">
+    <!-- Page header -->
+    <div class="rankings-header">
+      <div>
+        <h1 class="rankings-title">Rankings</h1>
+        <p v-if="session" class="text-muted">{{ rankScopeLabel }} · {{ totalCount }} {{ summaryLabel }}</p>
+        <p v-else class="text-muted">Open a session to see live rankings.</p>
       </div>
-      <div v-else class="card live-surface">
-        <div class="subtitle">Open a session to see the live rankings.</div>
+      <div v-if="session && isTeamView && champion" class="champion-badge">
+        🏆 {{ champion.name }}
       </div>
     </div>
 
-    <div class="page-side stack">
-      <div class="card live-surface">
-        <div class="section-title">Rankings</div>
-        <div v-if="!session" class="subtitle">No active session.</div>
-        <div v-else class="rank-summary">
-          <div class="rank-summary-card">
-            <div class="subtitle">Session</div>
-            <strong>{{ rankScopeLabel }}</strong>
+    <!-- Mode toggle -->
+    <div v-if="showRankToggle" class="rank-tab-bar">
+      <button
+        class="rank-tab"
+        :class="{ active: rankMode === 'players' }"
+        type="button"
+        @click="rankMode = 'players'"
+      >Players</button>
+      <button
+        v-if="showPairToggle"
+        class="rank-tab"
+        :class="{ active: rankMode === 'pairs' }"
+        type="button"
+        @click="rankMode = 'pairs'"
+      >Pairs</button>
+      <button
+        v-if="showTeamToggle"
+        class="rank-tab"
+        :class="{ active: rankMode === 'teams' }"
+        type="button"
+        @click="rankMode = 'teams'"
+      >Teams</button>
+    </div>
+
+    <!-- Empty state -->
+    <div v-if="!session" class="empty-state">
+      No active session. Start one from the home screen.
+    </div>
+    <div v-else-if="rankedRows.length === 0" class="empty-state">
+      No stats yet. Play some matches to see rankings.
+    </div>
+
+    <!-- Rankings content -->
+    <template v-else>
+      <!-- Podium (top 3) -->
+      <div class="rank-podium">
+        <div
+          v-for="(row, idx) in podiumRows"
+          :key="row.id"
+          class="rank-podium-card"
+          :class="`podium-${rankClass(row.rank)}`"
+          :style="{ animationDelay: `${idx * 80}ms` }"
+        >
+          <div class="rank-corner-icon">{{ rankCornerIcon(row.rank) }}</div>
+          <div class="rank-medal">
+            <span class="rank-number">{{ row.rank }}</span>
           </div>
-          <div class="rank-summary-card">
-            <div class="subtitle">{{ summaryLabel }}</div>
-            <strong>{{ totalCount }}</strong>
+          <div class="rank-name">{{ row.name }}</div>
+          <div class="rank-mini-stats">
+            <span>GP {{ row.gamesPlayed }}</span>
+            <span>W {{ row.wins }}</span>
+            <span>L {{ row.losses }}</span>
+            <span v-if="isTeamView">Pts {{ row.points }}</span>
+            <span v-else>{{ winPct(row.winPct) }}</span>
           </div>
         </div>
       </div>
-    </div>
+
+      <!-- Rest of the list -->
+      <div v-if="restRows.length" class="rank-list">
+        <div
+          v-for="(row, idx) in restRows"
+          :key="row.id"
+          class="rank-row"
+          :style="{ animationDelay: `${(idx + 3) * 40}ms` }"
+        >
+          <div class="rank-row-left">
+            <div class="rank-row-badge" :class="rankClass(row.rank)">
+              <span class="rank-number">{{ row.rank }}</span>
+            </div>
+            <div class="rank-row-name">{{ row.name }}</div>
+          </div>
+          <div class="rank-row-icon">{{ rankCornerIcon(row.rank) }}</div>
+          <div class="rank-row-stats">
+            <span class="rank-pill">GP {{ row.gamesPlayed }}</span>
+            <span class="rank-pill win">W {{ row.wins }}</span>
+            <span class="rank-pill loss">L {{ row.losses }}</span>
+            <span v-if="isTeamView" class="rank-pill pct">Pts {{ row.points }}</span>
+            <span v-else class="rank-pill pct">{{ winPct(row.winPct) }}</span>
+          </div>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -147,11 +129,6 @@ const summaryLabel = computed(() => {
   if (isTeamView.value) return "teams";
   if (isPairView.value) return "pairs";
   return "players";
-});
-const rankTitle = computed(() => {
-  if (isTeamView.value) return "Top Teams";
-  if (isPairView.value) return "Top Pairs";
-  return "Top Players";
 });
 const rankScopeLabel = computed(() => (isTeamView.value ? "All sessions" : session.value?.name || "Session"));
 const showPairToggle = computed(() => session.value?.gameType === "doubles");
@@ -335,3 +312,84 @@ onMounted(load);
 
 watch(selectedSessionId, load);
 </script>
+
+<style scoped>
+/* ── Page shell ──────────────────────────────────────────────────── */
+.rankings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── Header ──────────────────────────────────────────────────────── */
+.rankings-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.rankings-title {
+  font-size: 26px;
+  font-weight: 800;
+  margin: 0 0 4px;
+  color: var(--ink);
+}
+
+.text-muted {
+  font-size: 14px;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.champion-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #1565c0, #00897b);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Mode tabs ───────────────────────────────────────────────────── */
+.rank-tab-bar {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 0;
+}
+
+.rank-tab {
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.rank-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.rank-tab:hover:not(.active) {
+  color: var(--ink);
+}
+
+/* ── Empty state ─────────────────────────────────────────────────── */
+.empty-state {
+  font-size: 15px;
+  color: var(--ink-soft);
+  padding: 24px 0;
+}
+</style>

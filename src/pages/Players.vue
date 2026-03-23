@@ -1,260 +1,185 @@
 <template>
-  <div class="page-grid" :class="{ 'with-sidebar': activeTab === 'players' }">
-    <div class="segmented page-full">
-      <button class="segment" :class="{ active: activeTab === 'players' }" type="button" @click="activeTab = 'players'">
+  <div class="players-page">
+    <!-- Tab bar -->
+    <div class="players-tab-bar">
+      <button class="players-tab" :class="{ active: activeTab === 'players' }" type="button" @click="activeTab = 'players'">
         Players
       </button>
-      <button class="segment" :class="{ active: activeTab === 'queue' }" type="button" @click="activeTab = 'queue'">
+      <button class="players-tab" :class="{ active: activeTab === 'queue' }" type="button" @click="activeTab = 'queue'">
         Queue
-        <span v-if="queueMatchCount > 0" class="segment-badge">{{ queueMatchCount }}</span>
+        <span v-if="queueMatchCount > 0" class="tab-badge">{{ queueMatchCount }}</span>
       </button>
-      <button class="segment" :class="{ active: activeTab === 'history' }" type="button" @click="activeTab = 'history'">
-        Match History
+      <button class="players-tab" :class="{ active: activeTab === 'history' }" type="button" @click="activeTab = 'history'">
+        History
       </button>
     </div>
 
+    <!-- Players Tab -->
     <template v-if="activeTab === 'players'">
-      <div class="page-main stack">
-        <div class="card stack live-surface">
-          <div v-if="!session" class="subtitle">No active session. Open a session to view and queue players.</div>
+      <p v-if="!session" class="empty-state">No active session. Open a session to view and queue players.</p>
+      <template v-else>
+        <!-- Search row -->
+        <div class="search-row">
+          <template v-if="selectionTab === 'players'">
+            <input class="input" v-model="search" placeholder="Search players" />
+            <div class="menu" ref="displayMenuRef">
+              <button class="menu-button" type="button" @click="showDisplayMenu = !showDisplayMenu">
+                <svg viewBox="0 0 24 24" role="img">
+                  <path d="M4 6h16v2H4V6zm0 5h10v2H4v-2zm0 5h7v2H4v-2z"></path>
+                </svg>
+              </button>
+              <div v-if="showDisplayMenu" class="menu-panel">
+                <label class="radio-row">
+                  <input type="checkbox" v-model="showJoinOrder" />
+                  Show join order
+                </label>
+              </div>
+            </div>
+          </template>
           <template v-else>
-            <div class="stack">
-              <div class="subtitle">Search Players</div>
-              <div class="players-toolbar">
-                <template v-if="selectionTab === 'players'">
-                  <input class="input" v-model="search" placeholder="Search players" />
-                  <div class="menu" ref="displayMenuRef">
-                    <button class="menu-button" type="button" @click="showDisplayMenu = !showDisplayMenu">
-                      <svg viewBox="0 0 24 24" role="img">
-                        <path d="M4 6h16v2H4V6zm0 5h10v2H4v-2zm0 5h7v2H4v-2z"></path>
-                      </svg>
-                    </button>
-                    <div v-if="showDisplayMenu" class="menu-panel">
-                      <label class="radio-row">
-                        <input type="checkbox" v-model="showJoinOrder" />
-                        Show join order
-                      </label>
-                    </div>
-                  </div>
-                </template>
-                <template v-else>
-                  <input class="input" v-model="teamSearch" placeholder="Search teams" />
-                  <button class="button ghost button-compact" @click="clearTeamSearch">Clear</button>
-                </template>
-              </div>
-            </div>
-
-            <div class="selection-header">
-              <div v-if="sessionGameType === 'doubles'" class="segmented inner-tabs">
-                <button
-                  class="segment"
-                  :class="{ active: selectionTab === 'players' }"
-                  type="button"
-                  @click="selectionTab = 'players'"
-                >
-                  Pick
-                </button>
-                <button
-                  class="segment"
-                  :class="{ active: selectionTab === 'teams' }"
-                  type="button"
-                  @click="selectionTab = 'teams'"
-                >
-                  Pairs
-                </button>
-              </div>
-              <div class="game-type inline">
-                <span class="subtitle">Game type</span>
-                <span class="subtitle compact">{{ sessionGameTypeLabel }}</span>
-              </div>
-            </div>
-
-            <template v-if="selectionTab === 'players'">
-              <div class="subtitle">Pick {{ selectionLimit }} Players to Start</div>
-              <div class="player-grid">
-                <div
-                  v-for="player in filteredPlayers"
-                  :key="player.id"
-                  class="player-card"
-                  :class="{
-                    selected: sessionIsOpen && selectedIds.includes(player.id),
-                    disabled: isPlaying(player),
-                    'new-player': isNewPlayer(player),
-                    'over-limit': isOverJoinLimit(player.id),
-                    'has-team': playerTeamColor(player),
-                    'team-missing': isTournamentMode && !playerTeamIdById(player.id)
-                  }"
-                  :style="playerCardStyle(player)"
-                  @click="toggleSelect(player)"
-                >
-                  <div class="player-card-top">
-                    <div class="player-name">
-                      <div class="player-name-row">
-                        <span
-                          v-if="playerTeamColor(player)"
-                          class="team-dot"
-                          :style="{ backgroundColor: playerTeamColor(player) }"
-                        ></span>
-                        <strong class="player-name-text">{{ player.nickname || player.fullName }}</strong>
-                        <button class="icon-button small" @click.stop="openEditPlayer(player)" aria-label="Edit player">
-                          <svg viewBox="0 0 24 24" role="img">
-                            <path d="M4 15.5V20h4.5L19 9.5 14.5 5 4 15.5z"></path>
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                    <span class="status-pill" :class="statusClass(player)">{{ statusLabel(player) }}</span>
-                  </div>
-                  <div class="subtitle games-text">Games: {{ gamesPlayed(player.id) }}</div>
-                  <div v-if="showJoinOrder" class="subtitle join-order-line">
-                    Join order: {{ joinOrderLabel(player.id) }}
-                  </div>
-                </div>
-              </div>
-              <div class="subtitle players-count">{{ filteredPlayers.length }} Players Available</div>
-
-              <div class="inline-actions">
-                <button class="button button-compact" :disabled="!canAdd" @click="addToQueue">Add to Queue</button>
-                <button
-                  class="button secondary button-compact"
-                  :disabled="!canAutoQueue"
-                  @click="autoQueueIdle"
-                >
-                  Auto Queue
-                </button>
-                <button
-                  v-if="showMarkPresent"
-                  class="button secondary button-compact"
-                  :disabled="selectedIds.length === 0 || !sessionIsOpen"
-                  @click="markPresent"
-                >
-                  Mark Present
-                </button>
-                <button
-                  class="button ghost danger button-compact"
-                  :disabled="selectedIds.length === 0"
-                  @click="openRemoveConfirm"
-                >
-                  Remove
-                </button>
-              </div>
-            </template>
-
-            <div v-if="sessionGameType === 'doubles' && selectionTab === 'teams'" class="team-select">
-              <div class="team-select-head">
-                <div>
-                  <div class="subtitle">Pairs</div>
-                  <div class="subtitle compact">Select 2 pairs to queue a match.</div>
-                </div>
-                <router-link class="button button-compact blue-gradient" to="/pairing">
-                  Open Pairing
-                </router-link>
-              </div>
-              <div v-if="filteredTeamOptions.length === 0" class="subtitle compact">
-                No pairs yet.
-              </div>
-              <div v-else class="team-select-grid">
-                <button
-                  v-for="team in filteredTeamOptions"
-                  :key="team.id"
-                  class="team-select-card"
-                  :class="{
-                    selected: selectedTeamIds.includes(team.id),
-                    disabled: isTeamDisabled(team)
-                  }"
-                  type="button"
-                  :disabled="isTeamDisabled(team)"
-                  @click="toggleTeamSelection(team)"
-                >
-                  <div class="team-select-headline">
-                    <div class="team-select-name">
-                      <span
-                        v-if="team.teamColor"
-                        class="team-color"
-                        :style="{ backgroundColor: team.teamColor }"
-                      ></span>
-                      <span>{{ team.displayName }}</span>
-                    </div>
-                    <span v-if="team.status" class="team-status-pill" :class="team.status.toLowerCase()">
-                      {{ team.status }}
-                    </span>
-                  </div>
-                  <div class="team-select-members">
-                    <span v-if="team.source === 'auto'" class="team-select-pill auto">Auto</span>
-                    <span v-else class="team-select-pill manual">Manual</span>
-                  </div>
-                </button>
-              </div>
-              <div class="team-select-actions">
-                <button class="button button-compact" :disabled="!canAddTeams" @click="addSelectedTeams">
-                  Add Pair{{ selectedTeamIds.length === 1 ? "" : "s" }} to Queue
-                </button>
-                <button
-                  class="button ghost button-compact"
-                  :disabled="selectedTeamIds.length === 0"
-                  @click="clearTeamSelection"
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-            <div v-if="queueError" class="notice">{{ queueError }}</div>
-            <div v-if="removeError" class="notice">{{ removeError }}</div>
-            <div v-if="presentError" class="notice">{{ presentError }}</div>
+            <input class="input" v-model="teamSearch" placeholder="Search teams" />
+            <button class="button ghost button-compact" @click="clearTeamSearch">Clear</button>
           </template>
         </div>
-      </div>
 
-      <div class="page-side stack">
-        <div class="card stack live-surface" :class="{ 'over-limit': joinLimitExceeded }">
-          <div class="section-title">Player Name &amp; Skill Level</div>
-          <input class="input" v-model="fullName" placeholder="Enter player name" :disabled="!sessionIsOpen" />
-          <div class="chip-row">
-            <button
-              v-for="level in skillLevels"
-              :key="level"
-              class="chip"
-              :class="{ active: skillLevel === level }"
-              type="button"
-              :disabled="!sessionIsOpen"
-              @click="skillLevel = level"
+        <!-- Pick / Pairs sub-tabs -->
+        <div class="selection-header">
+          <div v-if="sessionGameType === 'doubles'" class="segmented inner-tabs">
+            <button class="segment" :class="{ active: selectionTab === 'players' }" type="button" @click="selectionTab = 'players'">Pick</button>
+            <button class="segment" :class="{ active: selectionTab === 'teams' }" type="button" @click="selectionTab = 'teams'">Pairs</button>
+          </div>
+          <div class="game-type inline">
+            <span class="text-muted">Game type:</span>
+            <strong>{{ sessionGameTypeLabel }}</strong>
+          </div>
+        </div>
+
+        <!-- Player grid -->
+        <template v-if="selectionTab === 'players'">
+          <p class="pick-hint">Pick {{ selectionLimit }} players to start a match</p>
+          <div class="player-grid">
+            <div
+              v-for="player in filteredPlayers"
+              :key="player.id"
+              class="player-card"
+              :class="{
+                selected: sessionIsOpen && selectedIds.includes(player.id),
+                disabled: isPlaying(player),
+                'new-player': isNewPlayer(player),
+                'over-limit': isOverJoinLimit(player.id),
+                'has-team': playerTeamColor(player),
+                'team-missing': isTournamentMode && !playerTeamIdById(player.id)
+              }"
+              :style="playerCardStyle(player)"
+              @click="toggleSelect(player)"
             >
-              {{ level }}
+              <div class="player-card-top">
+                <div class="player-name">
+                  <div class="player-name-row">
+                    <span v-if="playerTeamColor(player)" class="team-dot" :style="{ backgroundColor: playerTeamColor(player) }"></span>
+                    <strong class="player-name-text">{{ player.nickname || player.fullName }}</strong>
+                    <button class="icon-button small" @click.stop="openEditPlayer(player)" aria-label="Edit player">
+                      <svg viewBox="0 0 24 24" role="img"><path d="M4 15.5V20h4.5L19 9.5 14.5 5 4 15.5z"></path></svg>
+                    </button>
+                  </div>
+                </div>
+                <span class="status-pill" :class="statusClass(player)">{{ statusLabel(player) }}</span>
+              </div>
+              <p class="card-meta">Games: {{ gamesPlayed(player.id) }}</p>
+              <p v-if="showJoinOrder" class="card-meta">Join order: {{ joinOrderLabel(player.id) }}</p>
+            </div>
+          </div>
+          <p class="players-count">{{ filteredPlayers.length }} players available</p>
+
+          <div class="action-bar">
+            <button class="button button-compact" :disabled="!canAdd" @click="addToQueue">Add to Queue</button>
+            <button class="button secondary button-compact" :disabled="!canAutoQueue" @click="autoQueueIdle">Auto Queue</button>
+            <button v-if="showMarkPresent" class="button secondary button-compact" :disabled="selectedIds.length === 0 || !sessionIsOpen" @click="markPresent">Mark Present</button>
+            <button class="button ghost danger button-compact" :disabled="selectedIds.length === 0" @click="openRemoveConfirm">Remove</button>
+          </div>
+          <div v-if="queueError" class="notice">{{ queueError }}</div>
+          <div v-if="removeError" class="notice">{{ removeError }}</div>
+          <div v-if="presentError" class="notice">{{ presentError }}</div>
+        </template>
+
+        <!-- Pairs tab -->
+        <div v-if="sessionGameType === 'doubles' && selectionTab === 'teams'" class="team-select">
+          <div class="team-select-head">
+            <div>
+              <p class="text-muted">Select 2 pairs to queue a match.</p>
+            </div>
+            <router-link class="button button-compact blue-gradient" to="/pairing">Open Pairing</router-link>
+          </div>
+          <p v-if="filteredTeamOptions.length === 0" class="text-muted">No pairs yet.</p>
+          <div v-else class="team-select-grid">
+            <button
+              v-for="team in filteredTeamOptions"
+              :key="team.id"
+              class="team-select-card"
+              :class="{ selected: selectedTeamIds.includes(team.id), disabled: isTeamDisabled(team) }"
+              type="button"
+              :disabled="isTeamDisabled(team)"
+              @click="toggleTeamSelection(team)"
+            >
+              <div class="team-select-headline">
+                <div class="team-select-name">
+                  <span v-if="team.teamColor" class="team-color" :style="{ backgroundColor: team.teamColor }"></span>
+                  <span>{{ team.displayName }}</span>
+                </div>
+                <span v-if="team.status" class="team-status-pill" :class="team.status.toLowerCase()">{{ team.status }}</span>
+              </div>
+              <div class="team-select-members">
+                <span v-if="team.source === 'auto'" class="team-select-pill auto">Auto</span>
+                <span v-else class="team-select-pill manual">Manual</span>
+              </div>
             </button>
           </div>
-          <button class="button" @click="addPlayer" :disabled="!sessionIsOpen">Add Player</button>
-          <div v-if="addError" class="notice">{{ addError }}</div>
+          <div class="team-select-actions">
+            <button class="button button-compact" :disabled="!canAddTeams" @click="addSelectedTeams">Add Pair{{ selectedTeamIds.length === 1 ? "" : "s" }} to Queue</button>
+            <button class="button ghost button-compact" :disabled="selectedTeamIds.length === 0" @click="clearTeamSelection">Clear</button>
+          </div>
         </div>
-      </div>
+
+        <!-- Add Player section -->
+        <div class="add-player-section" :class="{ 'over-limit': joinLimitExceeded }">
+          <h2 class="add-player-heading">Add Player</h2>
+          <div class="add-player-form">
+            <input class="input" v-model="fullName" placeholder="Player name" :disabled="!sessionIsOpen" />
+            <div class="chip-row">
+              <button v-for="level in skillLevels" :key="level" class="chip" :class="{ active: skillLevel === level }" type="button" :disabled="!sessionIsOpen" @click="skillLevel = level">{{ level }}</button>
+            </div>
+            <button class="button" @click="addPlayer" :disabled="!sessionIsOpen">Add Player</button>
+            <div v-if="addError" class="notice">{{ addError }}</div>
+          </div>
+        </div>
+      </template>
     </template>
 
-    <div v-if="activeTab === 'queue'" class="card stack live-surface page-full">
+    <!-- Queue Tab -->
+    <div v-if="activeTab === 'queue'" class="tab-content">
       <div class="queue-header">
         <div>
-          <div class="section-title">Queue</div>
-          <div class="subtitle">{{ queueMatches.length }} match waiting</div>
+          <h2 class="tab-heading">Queue</h2>
+          <p class="text-muted">{{ queueMatches.length }} match{{ queueMatches.length === 1 ? '' : 'es' }} waiting</p>
         </div>
         <button class="link-button" @click="createQueueShareLink">
-          <span class="link-icon">🔗</span>
-          Create Share Link
+          <span class="link-icon">🔗</span> Share Link
         </button>
       </div>
 
       <div class="share-card">
-        <div class="share-text">Share your queue with players so they can view upcoming matches.</div>
-      <div v-if="queueShareLink" class="share-link">
-        <input class="input" readonly :value="queueShareLink" />
-        <button class="button ghost button-compact" :class="{ active: queueCopied }" @click="copyQueueShareLink">
-          {{ queueCopied ? "Copied" : "Copy" }}
-        </button>
-      </div>
+        <p class="share-text">Share your queue with players so they can view upcoming matches.</p>
+        <div v-if="queueShareLink" class="share-link">
+          <input class="input" readonly :value="queueShareLink" />
+          <button class="button ghost button-compact" :class="{ active: queueCopied }" @click="copyQueueShareLink">{{ queueCopied ? "Copied" : "Copy" }}</button>
+        </div>
       </div>
 
-      <div v-if="queueMatches.length === 0" class="subtitle">Queue is empty.</div>
+      <p v-if="queueMatches.length === 0" class="empty-state">Queue is empty.</p>
       <div v-for="(match, idx) in queueMatches" :key="match.id" class="queue-match-card" :class="{ alt: idx % 2 === 1 }">
         <div class="queue-card-head">
           <strong>#{{ idx + 1 }} {{ match.typeLabel }}</strong>
-          <span class="subtitle">Requested {{ formatTime(match.requestedAt) }}</span>
+          <span class="text-muted">{{ formatTime(match.requestedAt) }}</span>
         </div>
         <div class="queue-vs">
           <div class="queue-team">{{ match.teamA.join(" + ") }}</div>
@@ -262,26 +187,20 @@
           <div class="queue-team">{{ match.teamB.join(" + ") }}</div>
         </div>
         <div class="queue-courts">
-          <div class="subtitle">Let's Play - Assign a Court:</div>
+          <p class="text-muted">Assign a court:</p>
           <div class="court-buttons">
-            <button
-              v-for="court in availableCourts"
-              :key="court.id"
-              class="button ghost button-compact"
-              @click="assignMatch(match, court)"
-            >
-              {{ court.court?.name || court.name }}
-            </button>
+            <button v-for="court in availableCourts" :key="court.id" class="button ghost button-compact" @click="assignMatch(match, court)">{{ court.court?.name || court.name }}</button>
           </div>
         </div>
         <button class="link-button danger" @click="cancelQueuedMatch(match)">Cancel match</button>
       </div>
     </div>
 
-    <div v-if="activeTab === 'history'" class="card stack page-full">
-      <div class="section-title">Match History</div>
+    <!-- History Tab -->
+    <div v-if="activeTab === 'history'" class="tab-content">
+      <h2 class="tab-heading">Match History</h2>
       <input class="input" v-model="historySearch" placeholder="Search by player name..." />
-      <div v-if="filteredHistory.length === 0" class="subtitle">No matches yet.</div>
+      <p v-if="filteredHistory.length === 0" class="empty-state">No matches yet.</p>
       <div v-for="match in filteredHistory" :key="match.id" class="history-card sleek">
         <div class="history-head">
           <div class="history-left">
@@ -292,39 +211,29 @@
           </div>
           <div class="history-right">
             <div class="history-time">{{ formatTime(match.endedAt || match.startedAt) }}</div>
-            <button
-              v-if="match.status === 'ended'"
-              class="button ghost button-compact history-edit-button"
-              @click="openEditResult(match)"
-            >
-              Edit Result
-            </button>
+            <button v-if="match.status === 'ended'" class="button ghost button-compact history-edit-button" @click="openEditResult(match)">Edit Result</button>
           </div>
         </div>
         <div class="history-vs compact">
           <div class="history-team" :class="{ winner: match.winnerTeam === 1 }">
             <span class="history-team-name">{{ teamNames(match, 1) }}</span>
             <span v-if="match.winnerTeam === 1" class="history-crown">🏆</span>
-            <span v-if="matchScore(match, 1) != null" class="history-score-pill">
-              {{ matchScore(match, 1) }}
-            </span>
+            <span v-if="matchScore(match, 1) != null" class="history-score-pill">{{ matchScore(match, 1) }}</span>
           </div>
           <span class="history-vs-pill">vs</span>
           <div class="history-team" :class="{ winner: match.winnerTeam === 2 }">
             <span class="history-team-name">{{ teamNames(match, 2) }}</span>
             <span v-if="match.winnerTeam === 2" class="history-crown">🏆</span>
-            <span v-if="matchScore(match, 2) != null" class="history-score-pill">
-              {{ matchScore(match, 2) }}
-            </span>
+            <span v-if="matchScore(match, 2) != null" class="history-score-pill">{{ matchScore(match, 2) }}</span>
           </div>
         </div>
         <div class="history-meta">
           <div class="history-meta-card">
-            <div class="subtitle">Duration</div>
+            <p class="text-muted">Duration</p>
             <strong>{{ durationLabel(match.startedAt, match.endedAt) }}</strong>
           </div>
           <div class="history-meta-card">
-            <div class="subtitle">Court</div>
+            <p class="text-muted">Court</p>
             <strong>{{ match.courtSession?.court?.name || '—' }}</strong>
           </div>
         </div>
@@ -2370,3 +2279,187 @@ onUnmounted(() => {
   document.removeEventListener("click", handleDisplayMenuOutsideClick);
 });
 </script>
+
+<style scoped>
+/* ── Page shell ─────────────────────────────────────────────────── */
+.players-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  /* app-shell already pads sides; no extra horizontal padding needed */
+}
+
+/* ── Tab bar ─────────────────────────────────────────────────────── */
+.players-tab-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px;
+  gap: 4px;
+}
+
+.players-tab {
+  border: none;
+  border-radius: 999px;
+  padding: 9px 12px;
+  font-size: 15px;
+  font-weight: 600;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  position: relative;
+}
+
+.players-tab.active {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.tab-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent-2);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Text helpers ────────────────────────────────────────────────── */
+.text-muted {
+  font-size: 14px;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.empty-state {
+  font-size: 16px;
+  color: var(--ink-soft);
+  text-align: center;
+  padding: 32px 0;
+  margin: 0;
+}
+
+/* ── Search row ──────────────────────────────────────────────────── */
+.search-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.search-row .input {
+  flex: 1;
+}
+
+/* ── Selection header (Pick/Pairs tabs + game type) ───────────────── */
+.selection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.game-type.inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Pick hint / count ───────────────────────────────────────────── */
+.pick-hint,
+.players-count {
+  font-size: 14px;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+/* ── Player card meta ────────────────────────────────────────────── */
+.card-meta {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 2px 0 0;
+}
+
+/* ── Action bar ──────────────────────────────────────────────────── */
+.action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ── Add Player section ──────────────────────────────────────────── */
+.add-player-section {
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.add-player-heading {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--ink);
+}
+
+.add-player-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* On wider screens, lay out the form horizontally */
+@media (min-width: 600px) {
+  .add-player-form {
+    flex-direction: row;
+    align-items: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .add-player-form .input {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .add-player-form .chip-row {
+    flex-shrink: 0;
+  }
+}
+
+/* ── Tab content areas (Queue / History) ─────────────────────────── */
+.tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tab-heading {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--ink);
+}
+
+/* ── Queue header ────────────────────────────────────────────────── */
+.queue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.queue-header h2 {
+  margin-bottom: 2px;
+}
+</style>
