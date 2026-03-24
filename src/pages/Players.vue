@@ -557,6 +557,8 @@ const editResultScoreA = ref("");
 const editResultScoreB = ref("");
 const editResultError = ref("");
 
+const AUTO_QUEUE_COOLDOWN_MS = 3 * 60 * 1000; // 3 minutes after last game
+
 const skillLevels = ["Beginner", "Intermediate", "Advance", "Elite"];
 const skillRank = new Map([
   ["Beginner", 1],
@@ -722,18 +724,20 @@ const idleCandidates = computed(() => {
     .filter((sp) => sp?.player)
     .filter((sp) => {
       if (sp.status !== "checked_in" && sp.status !== "ready") return false;
-      if (!sp.lastPlayedAt) return false;
       if (playingIds.value.has(sp.playerId) || queuedIds.value.has(sp.playerId)) return false;
+      if (sp.lastPlayedAt && now - new Date(sp.lastPlayedAt).getTime() < AUTO_QUEUE_COOLDOWN_MS) return false;
       return true;
     })
     .map((sp) => {
-      const idleMs = Math.max(0, now - new Date(sp.lastPlayedAt).getTime());
+      const idleMs = sp.lastPlayedAt
+        ? Math.max(0, now - new Date(sp.lastPlayedAt).getTime())
+        : Number.MAX_SAFE_INTEGER;
       return {
         id: sp.playerId,
         player: sp.player,
         skill: skillRank.get(sp.player?.skillLevel) ?? 2,
         idleMs,
-        idleSeconds: Math.floor(idleMs / 1000)
+        idleSeconds: sp.lastPlayedAt ? Math.floor(idleMs / 1000) : Number.MAX_SAFE_INTEGER
       };
     })
     .sort((a, b) => {
@@ -1178,7 +1182,7 @@ function pickIdleSelection(candidates, needed) {
       bestMinIdle = minIdle;
     }
   }
-  return best || [];
+  return best || top;
 }
 
 function buildBalancedDoublesOrder(candidates) {
