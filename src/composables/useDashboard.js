@@ -452,6 +452,31 @@ export function useDashboard() {
     }
   }
 
+  async function finishMatch() {
+    if (!session.value || !endMatchCourt.value?.currentMatchId) return;
+    try {
+      const payload = { matchId: endMatchCourt.value.currentMatchId };
+      const scoreA = parseScoreValue(endMatchScoreA.value);
+      const scoreB = parseScoreValue(endMatchScoreB.value);
+      if (scoreA != null && scoreB != null) {
+        payload.score = { team1: scoreA, team2: scoreB };
+        if (scoreA > scoreB) payload.winnerTeam = 1;
+        else if (scoreB > scoreA) payload.winnerTeam = 2;
+        // equal scores = draw, no winnerTeam
+      } else if (scoreA != null || scoreB != null) {
+        const score = {};
+        if (scoreA != null) score.team1 = scoreA;
+        if (scoreB != null) score.team2 = scoreB;
+        payload.score = score;
+      }
+      await api.endMatch(session.value.id, payload);
+      closeEndMatch();
+      await refresh();
+    } catch (err) {
+      endMatchError.value = err.message || "Unable to end match";
+    }
+  }
+
   async function cancelMatch(courtSession) {
     if (!session.value || !courtSession.currentMatchId) return;
     error.value = "";
@@ -470,8 +495,8 @@ export function useDashboard() {
       showInviteWarning.value = true;
       return;
     }
-    const link = await api.createSessionInviteLink(session.value.id);
-    inviteLink.value = `${window.location.origin}/join/${link.token}`;
+    const link = await api.createSessionShareLink(session.value.id);
+    inviteLink.value = `${window.location.origin}/q/${link.token}`;
     showInviteLink.value = true;
   }
 
@@ -649,7 +674,7 @@ export function useDashboard() {
     createCourt, closeAddCourt,
     openEditCourt, updateCourt, closeEditCourt,
     deleteCourt, confirmDeleteCourt, closeDeleteCourt,
-    openEndMatch, closeEndMatch, setWinner,
+    openEndMatch, closeEndMatch, setWinner, finishMatch,
     cancelMatch,
     createInviteLink, copyInviteLink, closeInviteLink, closeInviteWarning,
     viewRoster, closeRoster,

@@ -28,7 +28,7 @@
         <div class="section-row-actions">
           <button class="pill-btn" @click="createInviteLink">
             <svg viewBox="0 0 24 24" width="13" height="13"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-            Join Link
+            Share Link
           </button>
           <button class="pill-btn pill-btn-accent" @click="showAddCourt = true">+ Add</button>
         </div>
@@ -190,7 +190,7 @@
         </div>
         <span class="match-burst">🏸</span>
       </div>
-      <div class="subtitle">Select the winner or mark as draw.</div>
+      <div class="subtitle">Enter the score — the winner will be decided automatically.</div>
       <div v-if="endMatchError" class="notice">{{ endMatchError }}</div>
       <div class="winner-grid">
         <div class="winner-card team-a">
@@ -201,7 +201,6 @@
             </div>
             <input class="input winner-score-input" type="number" min="0" v-model="endMatchScoreA" placeholder="Score" />
           </div>
-          <button class="button button-compact" @click="setWinner(1)">{{ endMatchTeams.teamAName }} Wins</button>
         </div>
         <div class="winner-card team-b">
           <div class="winner-row">
@@ -211,11 +210,10 @@
             </div>
             <input class="input winner-score-input" type="number" min="0" v-model="endMatchScoreB" placeholder="Score" />
           </div>
-          <button class="button button-compact secondary" @click="setWinner(2)">{{ endMatchTeams.teamBName }} Wins</button>
         </div>
       </div>
       <div class="match-modal-actions">
-        <button class="button ghost button-compact draw-button" @click="setWinner(null)">Draw</button>
+        <button class="button button-compact" @click="finishMatch">Finish</button>
         <button class="button ghost button-compact" @click="closeEndMatch">Cancel</button>
       </div>
     </div>
@@ -237,8 +235,8 @@
   </div>
   <div v-if="showInviteLink" class="modal-backdrop">
     <div class="modal-card">
-      <h3>Session Join Link</h3>
-      <div class="subtitle">Share this link so players can register.</div>
+      <h3>Session Share Link</h3>
+      <div class="subtitle">Share this link so players can view the live queue and games.</div>
       <div class="share-link">
         <input class="input" readonly :value="inviteLink" />
         <button class="button ghost button-compact" :class="{ active: inviteCopied }" @click="copyInviteLink">
@@ -251,7 +249,7 @@
   <div v-if="showInviteWarning" class="modal-backdrop">
     <div class="modal-card">
       <h3>Session needed</h3>
-      <div class="subtitle">Create and open a session before generating a join link.</div>
+      <div class="subtitle">Create and open a session before generating a share link.</div>
       <button class="button" @click="closeInviteWarning">OK</button>
     </div>
   </div>
@@ -394,7 +392,7 @@ const {
   createCourt, closeAddCourt,
   openEditCourt, updateCourt, closeEditCourt,
   deleteCourt, confirmDeleteCourt, closeDeleteCourt,
-  openEndMatch, closeEndMatch, setWinner,
+  openEndMatch, closeEndMatch, finishMatch,
   cancelMatch,
   createInviteLink, copyInviteLink, closeInviteLink, closeInviteWarning,
   viewRoster, closeRoster,

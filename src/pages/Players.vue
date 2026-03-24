@@ -151,6 +151,13 @@
             <button class="button" @click="addPlayer" :disabled="!sessionIsOpen">Add Player</button>
             <div v-if="addError" class="notice">{{ addError }}</div>
           </div>
+          <div v-if="session" class="join-link-row">
+            <button class="button ghost button-compact" @click="openJoinLink">
+              <svg viewBox="0 0 24 24" width="15" height="15" style="margin-right:5px;vertical-align:-2px"><path fill="currentColor" d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
+              Join Link
+            </button>
+            <span class="join-link-hint">Share with players to join this session</span>
+          </div>
         </div>
       </template>
     </template>
@@ -458,6 +465,21 @@
       </div>
     </div>
   </div>
+
+  <!-- Join Link modal -->
+  <div v-if="showJoinLinkModal" class="modal-backdrop">
+    <div class="modal-card">
+      <h3>Session Join Link</h3>
+      <div class="subtitle">Share this link so players can register.</div>
+      <div class="share-link">
+        <input class="input" readonly :value="joinLink" />
+        <button class="button ghost button-compact" :class="{ active: joinLinkCopied }" @click="copyJoinLink">
+          {{ joinLinkCopied ? "Copied" : "Copy" }}
+        </button>
+      </div>
+      <button class="button ghost" @click="closeJoinLinkModal">Close</button>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -483,6 +505,10 @@ const presentError = ref("");
 const queueShareLink = ref("");
 const queueCopied = ref(false);
 let queueCopyTimer = null;
+const showJoinLinkModal = ref(false);
+const joinLink = ref("");
+const joinLinkCopied = ref(false);
+let joinLinkCopyTimer = null;
 const historySearch = ref("");
 const showDisplayMenu = ref(false);
 const showJoinOrder = ref(true);
@@ -1236,9 +1262,6 @@ async function load() {
   sessionPlayers.value = playersResult.status === "fulfilled" ? playersResult.value : [];
   matches.value = matchesResult.status === "fulfilled" ? matchesResult.value : [];
   manualTeams.value = sessionGameType.value === "doubles" ? loadManualTeams(currentSession.id) : [];
-  if (sessionGameType.value === "doubles") {
-    selectionTab.value = "teams";
-  }
 }
 
 async function addPlayer() {
@@ -1386,6 +1409,27 @@ async function confirmCancelMatch() {
 function closeCancelConfirm() {
   showCancelConfirm.value = false;
   cancelMatchTarget.value = null;
+}
+
+async function openJoinLink() {
+  if (!session.value) return;
+  const link = await api.createSessionInviteLink(session.value.id);
+  joinLink.value = `${window.location.origin}/join/${link.token}`;
+  showJoinLinkModal.value = true;
+}
+
+async function copyJoinLink() {
+  if (!joinLink.value) return;
+  await navigator.clipboard.writeText(joinLink.value);
+  joinLinkCopied.value = true;
+  if (joinLinkCopyTimer) window.clearTimeout(joinLinkCopyTimer);
+  joinLinkCopyTimer = window.setTimeout(() => { joinLinkCopied.value = false; }, 1500);
+}
+
+function closeJoinLinkModal() {
+  showJoinLinkModal.value = false;
+  joinLink.value = "";
+  joinLinkCopied.value = false;
 }
 
 async function createQueueShareLink() {
@@ -2435,6 +2479,18 @@ onUnmounted(() => {
   .add-player-form .chip-row {
     flex-shrink: 0;
   }
+}
+
+.join-link-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.join-link-hint {
+  font-size: 13px;
+  color: var(--ink-soft);
 }
 
 /* ── Tab content areas (Queue / History) ─────────────────────────── */
