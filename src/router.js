@@ -6,6 +6,7 @@ import Players from "./pages/Players.vue";
 import Fees from "./pages/Fees.vue";
 import Rankings from "./pages/Rankings.vue";
 import PublicPlayer from "./pages/PublicPlayer.vue";
+import PublicFees from "./pages/PublicFees.vue";
 import PublicBoard from "./pages/PublicBoard.vue";
 import PublicQueue from "./pages/PublicQueue.vue";
 import JoinSession from "./pages/JoinSession.vue";
@@ -23,6 +24,7 @@ const routes = [
   { path: "/login", component: Login, meta: { public: true, hideHeader: true } },
   { path: "/register", component: Register, meta: { public: true, hideHeader: true } },
   { path: "/p/:token", component: PublicPlayer, meta: { public: true } },
+  { path: "/fees/:token", component: PublicFees, meta: { public: true, hideHeader: true } },
   { path: "/q/:token", component: PublicQueue, meta: { public: true, hideHeader: true } },
   { path: "/join/:token", component: JoinSession, meta: { public: true } },
   { path: "/board/:sessionId", component: PublicBoard, meta: { public: true } },

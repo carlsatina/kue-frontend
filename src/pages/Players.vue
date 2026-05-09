@@ -464,7 +464,6 @@
         </div>
       </div>
     </div>
-  </div>
 
   <!-- Join Link modal -->
   <div v-if="showJoinLinkModal" class="modal-backdrop">
@@ -479,6 +478,7 @@
       </div>
       <button class="button ghost" @click="closeJoinLinkModal">Close</button>
     </div>
+  </div>
   </div>
 </template>
 

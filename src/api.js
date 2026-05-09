@@ -116,11 +116,39 @@ export const api = {
     return request(`/sessions/${sessionId}/team-stats${query ? `?${query}` : ""}`);
   },
   balances: (sessionId) => request(`/payments/${sessionId}/balances`),
-  recordPayment: (sessionId, payload) => request(`/payments/${sessionId}`, { method: "POST", body: JSON.stringify(payload) }),
+  confirmPayment: (sessionId, paymentId) =>
+    request(`/payments/${sessionId}/${paymentId}/confirm`, { method: "PATCH" }),
+  rejectPayment: (sessionId, paymentId) =>
+    request(`/payments/${sessionId}/${paymentId}/reject`, { method: "PATCH" }),
+  recordPayment: (sessionId, payload, proofFile) => {
+    if (proofFile) {
+      const form = new FormData();
+      form.append("playerId", payload.playerId);
+      form.append("amount", String(payload.amount));
+      form.append("method", payload.method);
+      if (payload.note) form.append("note", payload.note);
+      form.append("proof", proofFile);
+      const token = localStorage.getItem("token");
+      const headers = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+      return fetch(`${API_URL}/payments/${sessionId}`, { method: "POST", headers, body: form })
+        .then((r) => r.json().then((d) => { if (!r.ok) throw new Error(d.error || "Request failed"); return d; }));
+    }
+    return request(`/payments/${sessionId}`, { method: "POST", body: JSON.stringify(payload) });
+  },
   createShareLink: (sessionId, payload) => request(`/share-links/${sessionId}`, { method: "POST", body: JSON.stringify(payload) }),
   revokeShareLink: (id) => request(`/share-links/${id}/revoke`, { method: "POST" }),
   createSessionShareLink: (sessionId) => request(`/share-links/session/${sessionId}`, { method: "POST" }),
   createSessionInviteLink: (sessionId) => request(`/share-links/session-invite/${sessionId}`, { method: "POST" }),
+  publicFeesSession: (token) => publicRequest(`/public/fees-session/${token}`),
+  publicSubmitProof: (token, playerId, method, proofFile) => {
+    const form = new FormData();
+    form.append("playerId", playerId);
+    form.append("method", method);
+    form.append("proof", proofFile);
+    return fetch(`${API_URL}/public/fees-session/${token}/proof`, { method: "POST", body: form })
+      .then((r) => r.json().then((d) => { if (!r.ok) throw new Error(d.error || "Request failed"); return d; }));
+  },
   publicPlayer: (token) => publicRequest(`/public/player/${token}`),
   publicQueue: (token) => publicRequest(`/public/queue/${token}`),
   publicQueueRankings: (token) => publicRequest(`/public/queue/${token}/rankings`),

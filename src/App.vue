@@ -55,7 +55,7 @@
 
     <router-view v-slot="{ Component }">
       <transition :name="transitionName">
-        <component :is="Component" :key="route.path" />
+        <component v-if="Component" :is="Component" :key="route.path" />
       </transition>
     </router-view>
 
