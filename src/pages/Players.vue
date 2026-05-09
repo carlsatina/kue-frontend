@@ -16,7 +16,10 @@
 
     <!-- Players Tab -->
     <template v-if="activeTab === 'players'">
-      <p v-if="!session" class="empty-state">No active session. Open a session to view and queue players.</p>
+      <div v-if="!session" class="empty-state">
+        No active session.
+        <button class="button button-compact" style="margin-top:12px" @click="openCreateSession">Create Session</button>
+      </div>
       <template v-else>
         <!-- Search row -->
         <div class="search-row">
@@ -186,7 +189,12 @@
       <div v-for="(match, idx) in queueMatches" :key="match.id" class="queue-match-card" :class="{ alt: idx % 2 === 1 }">
         <div class="queue-card-head">
           <strong>#{{ idx + 1 }} {{ match.typeLabel }}</strong>
-          <span class="text-muted">{{ formatTime(match.requestedAt) }}</span>
+          <div class="queue-card-head-right">
+            <span class="text-muted">{{ formatTime(match.requestedAt) }}</span>
+            <button v-if="sessionIsOpen" class="queue-edit-btn" @click="openEditPairing(match)" title="Edit pairing">
+              <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+            </button>
+          </div>
         </div>
         <div class="queue-vs">
           <div class="queue-team">{{ match.teamA.join(" + ") }}</div>
@@ -465,6 +473,73 @@
       </div>
     </div>
 
+  <!-- Edit Pairing modal -->
+  <div v-if="showEditPairing" class="modal-backdrop">
+    <div class="modal-card pairing-modal">
+      <div class="section-title">Edit Pairing</div>
+      <div class="subtitle">Tap a slot to select it, then tap another slot to swap — or tap an idle player to replace.</div>
+      <div class="pairing-grid">
+        <div class="pairing-team">
+          <div class="subtitle">Team A</div>
+          <div
+            v-for="(player, idx) in editPairingSlots[0]"
+            :key="`ea-${idx}`"
+            class="pairing-slot"
+            :class="{ selected: editPairingSelected?.team === 0 && editPairingSelected?.idx === idx }"
+            @click="selectEditSlot(0, idx)"
+          >
+            <div class="pairing-pill">{{ player.name }}</div>
+          </div>
+        </div>
+        <div class="pairing-team">
+          <div class="subtitle">Team B</div>
+          <div
+            v-for="(player, idx) in editPairingSlots[1]"
+            :key="`eb-${idx}`"
+            class="pairing-slot"
+            :class="{ selected: editPairingSelected?.team === 1 && editPairingSelected?.idx === idx }"
+            @click="selectEditSlot(1, idx)"
+          >
+            <div class="pairing-pill pairing-pill-b">{{ player.name }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="edit-pairing-idle">
+        <div class="edit-pairing-idle-header">
+          <span class="subtitle">Idle Players</span>
+          <span v-if="editPairingSelected" class="edit-pairing-idle-hint">Select to replace</span>
+        </div>
+        <template v-if="editPairingIdlePlayers.length">
+          <input
+            class="input"
+            v-model="editPairingIdleSearch"
+            placeholder="Search idle players..."
+            style="font-size:13px; padding:7px 10px;"
+          />
+          <div class="idle-player-list">
+            <button
+              v-for="p in filteredEditPairingIdlePlayers"
+              :key="p.id"
+              class="idle-player-row"
+              :class="{ 'can-replace': editPairingSelected !== null }"
+              @click="replaceWithIdlePlayer(p)"
+            >{{ p.name }}</button>
+            <p v-if="filteredEditPairingIdlePlayers.length === 0" class="text-muted" style="font-size:12px; margin:6px 0 0;">No matches.</p>
+          </div>
+        </template>
+        <p v-else class="text-muted" style="font-size:12px; margin:0">No idle players available.</p>
+      </div>
+      <div v-if="editPairingError" class="notice">{{ editPairingError }}</div>
+      <div class="pairing-actions edit-pairing-actions">
+        <button class="button ghost button-compact" @click="swapEditTeams">↔ Swap Teams</button>
+        <div class="edit-pairing-right-actions">
+          <button class="button ghost" @click="closeEditPairing">Cancel</button>
+          <button class="button" @click="saveEditPairing">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Join Link modal -->
   <div v-if="showJoinLinkModal" class="modal-backdrop">
     <div class="modal-card">
@@ -487,6 +562,10 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { api } from "../api.js";
 import { loadManualTeams } from "../utils/teamBuilder.js";
 import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.js";
+
+function openCreateSession() {
+  document.dispatchEvent(new Event("createSession:open"));
+}
 
 const activeTab = ref("players");
 const players = ref([]);
@@ -511,7 +590,7 @@ const joinLinkCopied = ref(false);
 let joinLinkCopyTimer = null;
 const historySearch = ref("");
 const showDisplayMenu = ref(false);
-const showJoinOrder = ref(true);
+const showJoinOrder = ref(false);
 const teamSearch = ref("");
 const displayMenuRef = ref(null);
 const sessionIsOpen = computed(() => session.value?.status === "open");
@@ -557,7 +636,15 @@ const editResultScoreA = ref("");
 const editResultScoreB = ref("");
 const editResultError = ref("");
 
+const showEditPairing = ref(false);
+const editPairingMatch = ref(null);
+const editPairingSlots = ref([[], []]);
+const editPairingSelected = ref(null);
+const editPairingError = ref("");
+const editPairingIdleSearch = ref("");
+
 const AUTO_QUEUE_COOLDOWN_MS = 3 * 60 * 1000; // 3 minutes after last game
+const PARTNER_HISTORY_LIMIT = 2; // recent partnerships tracked per player
 
 const skillLevels = ["Beginner", "Intermediate", "Advance", "Elite"];
 const skillRank = new Map([
@@ -747,6 +834,39 @@ const idleCandidates = computed(() => {
       return aName.localeCompare(bName, undefined, { sensitivity: "base" });
     });
 });
+// Map<playerId, Set<partnerId>> — last PARTNER_HISTORY_LIMIT partners per player
+const recentPartnersMap = computed(() => {
+  const map = new Map();
+  const playerSeen = new Map();
+  const ended = [...matches.value]
+    .filter((m) => m.status === "ended" && m.matchType === "doubles")
+    .reverse(); // newest first
+  for (const match of ended) {
+    const participants = match.participants || [];
+    for (const teamNum of [1, 2]) {
+      const pair = participants
+        .filter((p) => p.teamNumber === teamNum)
+        .map((p) => p.playerId)
+        .filter(Boolean);
+      if (pair.length !== 2) continue;
+      const [p1, p2] = pair;
+      const seen1 = playerSeen.get(p1) || 0;
+      const seen2 = playerSeen.get(p2) || 0;
+      if (seen1 < PARTNER_HISTORY_LIMIT) {
+        if (!map.has(p1)) map.set(p1, new Set());
+        map.get(p1).add(p2);
+        playerSeen.set(p1, seen1 + 1);
+      }
+      if (seen2 < PARTNER_HISTORY_LIMIT) {
+        if (!map.has(p2)) map.set(p2, new Set());
+        map.get(p2).add(p1);
+        playerSeen.set(p2, seen2 + 1);
+      }
+    }
+  }
+  return map;
+});
+
 const canAutoQueue = computed(
   () => session.value && sessionIsOpen.value && idleCandidates.value.length >= selectionLimit.value
 );
@@ -759,6 +879,37 @@ const canAddTeams = computed(
 );
 
 const queueMatchCount = computed(() => queueMatches.value.length);
+
+const editPairingIdlePlayers = computed(() => {
+  if (!showEditPairing.value || !editPairingMatch.value) return [];
+  const inSlots = new Set([
+    ...editPairingSlots.value[0].map((p) => p.id),
+    ...editPairingSlots.value[1].map((p) => p.id)
+  ]);
+  const editingEntryIds = new Set(editPairingMatch.value.entryIds);
+  const queuedElsewhere = new Set();
+  queueEntries.value.forEach((entry) => {
+    if (!editingEntryIds.has(entry.id)) {
+      entry.players.forEach((p) => queuedElsewhere.add(p.playerId));
+    }
+  });
+  return sessionPlayers.value
+    .filter((sp) => {
+      if (!["checked_in", "ready", "present"].includes(sp.status)) return false;
+      if (playingIds.value.has(sp.playerId)) return false;
+      if (queuedElsewhere.has(sp.playerId)) return false;
+      if (inSlots.has(sp.playerId)) return false;
+      return true;
+    })
+    .map((sp) => ({ id: sp.playerId, name: sp.player.nickname || sp.player.fullName }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+});
+
+const filteredEditPairingIdlePlayers = computed(() => {
+  const q = editPairingIdleSearch.value.trim().toLowerCase();
+  if (!q) return editPairingIdlePlayers.value;
+  return editPairingIdlePlayers.value.filter((p) => p.name.toLowerCase().includes(q));
+});
 
 const manualAssignedIds = computed(() => {
   const ids = new Set();
@@ -893,6 +1044,10 @@ const queueMatches = computed(() => {
         teamIds: [
           a.players.map((p) => p.playerId),
           b.players.map((p) => p.playerId)
+        ],
+        teamPlayers: [
+          a.players.map((p) => ({ id: p.playerId, name: p.player.nickname || p.player.fullName })),
+          b.players.map((p) => ({ id: p.playerId, name: p.player.nickname || p.player.fullName }))
         ]
       });
     }
@@ -922,6 +1077,10 @@ const queueMatches = computed(() => {
         teamIds: [
           a.players.map((p) => p.playerId),
           b.players.map((p) => p.playerId)
+        ],
+        teamPlayers: [
+          a.players.map((p) => ({ id: p.playerId, name: p.player.nickname || p.player.fullName })),
+          b.players.map((p) => ({ id: p.playerId, name: p.player.nickname || p.player.fullName }))
         ]
       });
       used.add(a.id);
@@ -1185,27 +1344,19 @@ function pickIdleSelection(candidates, needed) {
   return best || top;
 }
 
-function buildBalancedDoublesOrder(candidates) {
+function buildBalancedDoublesOrder(candidates, partnerMap = new Map()) {
   if (candidates.length !== 4) return candidates.map((candidate) => candidate.id);
   const ids = candidates.map((candidate) => candidate.id);
   const skills = candidates.map((candidate) => candidate.skill);
   const idleTimes = candidates.map((candidate) => candidate.idleSeconds ?? 0);
   const pairings = [
-    [
-      [0, 1],
-      [2, 3]
-    ],
-    [
-      [0, 2],
-      [1, 3]
-    ],
-    [
-      [0, 3],
-      [1, 2]
-    ]
+    [[0, 1], [2, 3]],
+    [[0, 2], [1, 3]],
+    [[0, 3], [1, 2]]
   ];
   let best = pairings[0];
   let bestDiff = Number.POSITIVE_INFINITY;
+  let bestRecentPairs = Number.POSITIVE_INFINITY;
   let bestMix = Number.NEGATIVE_INFINITY;
   pairings.forEach((pairing) => {
     const [[a1, a2], [b1, b2]] = pairing;
@@ -1213,9 +1364,18 @@ function buildBalancedDoublesOrder(candidates) {
     const sumB = skills[b1] + skills[b2];
     const diff = Math.abs(sumA - sumB);
     const mix = Math.abs(skills[a1] - skills[a2]) + Math.abs(skills[b1] - skills[b2]);
-    if (diff < bestDiff || (diff === bestDiff && mix > bestMix)) {
+    // count how many proposed pairs have recently played together
+    let recentPairs = 0;
+    if (partnerMap.get(ids[a1])?.has(ids[a2])) recentPairs++;
+    if (partnerMap.get(ids[b1])?.has(ids[b2])) recentPairs++;
+    const better =
+      diff < bestDiff ||
+      (diff === bestDiff && recentPairs < bestRecentPairs) ||
+      (diff === bestDiff && recentPairs === bestRecentPairs && mix > bestMix);
+    if (better) {
       best = pairing;
       bestDiff = diff;
+      bestRecentPairs = recentPairs;
       bestMix = mix;
     }
   });
@@ -1349,7 +1509,7 @@ async function autoQueueIdle() {
   }
   const order =
     sessionGameType.value === "doubles" && selected.length === 4
-      ? buildBalancedDoublesOrder(selected)
+      ? buildBalancedDoublesOrder(selected, recentPartnersMap.value)
       : selected.map((candidate) => candidate.id);
   try {
     selectedIds.value = order;
@@ -1413,6 +1573,93 @@ async function confirmCancelMatch() {
 function closeCancelConfirm() {
   showCancelConfirm.value = false;
   cancelMatchTarget.value = null;
+}
+
+function openEditPairing(match) {
+  editPairingMatch.value = match;
+  editPairingSlots.value = [
+    match.teamPlayers[0].map((p) => ({ ...p })),
+    match.teamPlayers[1].map((p) => ({ ...p }))
+  ];
+  editPairingSelected.value = null;
+  editPairingError.value = "";
+  editPairingIdleSearch.value = "";
+  showEditPairing.value = true;
+}
+
+function closeEditPairing() {
+  showEditPairing.value = false;
+  editPairingMatch.value = null;
+  editPairingSlots.value = [[], []];
+  editPairingSelected.value = null;
+  editPairingError.value = "";
+  editPairingIdleSearch.value = "";
+}
+
+function selectEditSlot(team, idx) {
+  if (!editPairingSelected.value) {
+    editPairingSelected.value = { team, idx };
+    return;
+  }
+  const prev = editPairingSelected.value;
+  if (prev.team === team && prev.idx === idx) {
+    editPairingSelected.value = null;
+    return;
+  }
+  const slots = editPairingSlots.value.map((t) => [...t]);
+  const tmp = slots[prev.team][prev.idx];
+  slots[prev.team][prev.idx] = slots[team][idx];
+  slots[team][idx] = tmp;
+  editPairingSlots.value = slots;
+  editPairingSelected.value = null;
+}
+
+function replaceWithIdlePlayer(player) {
+  if (!editPairingSelected.value) return;
+  const { team, idx } = editPairingSelected.value;
+  const slots = editPairingSlots.value.map((t) => [...t]);
+  slots[team][idx] = player;
+  editPairingSlots.value = slots;
+  editPairingSelected.value = null;
+}
+
+function swapEditTeams() {
+  const [teamA, teamB] = editPairingSlots.value;
+  editPairingSlots.value = [[...teamB], [...teamA]];
+  editPairingSelected.value = null;
+}
+
+async function saveEditPairing() {
+  if (!session.value || !editPairingMatch.value) return;
+  editPairingError.value = "";
+  const match = editPairingMatch.value;
+  const sessionId = session.value.id;
+  const allEntryIds = queueEntries.value.map((e) => e.id);
+  const matchStartIdx = allEntryIds.indexOf(match.entryIds[0]);
+  try {
+    await api.dequeue(sessionId, { entryId: match.entryIds[0] });
+    await api.dequeue(sessionId, { entryId: match.entryIds[1] });
+    const newEntryA = await api.enqueue(sessionId, {
+      type: match.matchType,
+      playerIds: editPairingSlots.value[0].map((p) => p.id)
+    });
+    const newEntryB = await api.enqueue(sessionId, {
+      type: match.matchType,
+      playerIds: editPairingSlots.value[1].map((p) => p.id)
+    });
+    const remaining = allEntryIds.filter((id) => !match.entryIds.includes(id));
+    const newOrder = [
+      ...remaining.slice(0, matchStartIdx),
+      newEntryA.id,
+      newEntryB.id,
+      ...remaining.slice(matchStartIdx)
+    ];
+    await api.reorder(sessionId, { orderedEntryIds: newOrder });
+    closeEditPairing();
+    await load();
+  } catch (err) {
+    editPairingError.value = err.message || "Unable to update pairing";
+  }
 }
 
 async function openJoinLink() {
@@ -2521,5 +2768,98 @@ onUnmounted(() => {
 
 .queue-header h2 {
   margin-bottom: 2px;
+}
+
+/* ── Queue card edit button ──────────────────────────────────────── */
+.queue-card-head-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.queue-edit-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border);
+  background: white;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: border-color 0.15s;
+}
+.queue-edit-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: var(--ink-soft);
+  transition: fill 0.15s;
+}
+.queue-edit-btn:hover { border-color: var(--accent); }
+.queue-edit-btn:hover svg { fill: var(--accent); }
+
+/* ── Edit Pairing modal ──────────────────────────────────────────── */
+.edit-pairing-idle {
+  display: grid;
+  gap: 8px;
+}
+
+.edit-pairing-idle-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.edit-pairing-idle-hint {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.idle-player-list {
+  max-height: 150px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.idle-player-row {
+  display: block;
+  width: 100%;
+  padding: 9px 12px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: default;
+  transition: background 0.12s, color 0.12s;
+}
+
+.idle-player-row:last-child {
+  border-bottom: none;
+}
+
+.idle-player-row.can-replace {
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.idle-player-row.can-replace:hover {
+  background: rgba(15, 157, 138, 0.1);
+  color: var(--accent);
+}
+
+.edit-pairing-actions {
+  justify-content: space-between;
+}
+
+.edit-pairing-right-actions {
+  display: flex;
+  gap: 8px;
 }
 </style>

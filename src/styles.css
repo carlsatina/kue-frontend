@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@300;400;500&family=Space+Grotesk:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
 :root {
   color-scheme: light;
@@ -21,16 +21,24 @@
   box-sizing: border-box;
 }
 
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
 body {
   margin: 0;
-  font-family: "Space Grotesk", system-ui, sans-serif;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
   color: var(--ink);
   background: var(--bg-0);
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3 {
-  font-family: "Fraunces", serif;
   margin: 0;
 }
 
@@ -132,7 +140,6 @@ a {
   border: 1.5px solid var(--border);
   background: var(--bg-0);
   font-size: 13px;
-  font-family: "Space Grotesk", system-ui, sans-serif;
   font-weight: 500;
   color: var(--ink);
   cursor: pointer;
@@ -172,9 +179,8 @@ a {
 
 .title {
   font-size: 20px;
-  font-family: "Space Grotesk", system-ui, sans-serif;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   color: var(--ink);
 }
 
@@ -226,8 +232,7 @@ a {
 }
 
 .mobile-nav .nav-label {
-  font-family: "Manrope", system-ui, sans-serif;
-  font-weight: 400;
+  font-weight: 500;
   letter-spacing: 0.01em;
   font-size: 10px;
 }
@@ -342,7 +347,6 @@ a {
   }
 
   .desktop-nav .nav-label {
-    font-family: "Manrope", system-ui, sans-serif;
     font-size: 12px;
     font-weight: 500;
     letter-spacing: 0.01em;
@@ -829,7 +833,7 @@ a {
 }
 
 .court-name {
-  font-family: "Manrope", system-ui, sans-serif;
+  font-family: inherit;
 }
 
 .kpi .court-name {
@@ -857,7 +861,7 @@ a {
 }
 
 .past-session-name {
-  font-family: "Manrope", system-ui, sans-serif;
+  font-family: inherit;
   font-size: 12.5px;
   font-weight: 500;
   color: var(--ink);
@@ -1949,6 +1953,12 @@ a {
   }
 }
 
+@media (min-width: 1080px) {
+  .player-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 .player-card {
   border: 1px solid var(--border);
   border-left: 4px solid transparent;
@@ -2012,14 +2022,12 @@ a {
 }
 
 .player-name-text {
-  font-family: "Manrope", "Space Grotesk", system-ui, sans-serif;
   font-weight: 400;
   font-size: 13px;
   line-height: 1.2;
 }
 
 .games-text {
-  font-family: "Manrope", "Space Grotesk", system-ui, sans-serif;
   font-weight: 400;
 }
 .join-order-line {
@@ -2869,7 +2877,6 @@ a {
 .tournament-bracket .vt-item-feedIn .vt-feedIn .name {
   width: 150px;
   font-size: 12px;
-  font-family: "Space Grotesk", system-ui, sans-serif;
   font-weight: 600;
   padding: 6px 10px;
 }
@@ -3269,7 +3276,7 @@ a {
   border-radius: 10px;
   padding: 6px 8px;
   text-align: left;
-  font-family: "Manrope", system-ui, sans-serif;
+  font-family: inherit;
   font-weight: 500;
   font-size: 11px;
   color: var(--ink);
@@ -3300,7 +3307,7 @@ a {
 }
 
 .team-name {
-  font-family: "Manrope", system-ui, sans-serif;
+  font-family: inherit;
   font-weight: 500;
   font-size: 12px;
   color: var(--ink);
@@ -3529,6 +3536,11 @@ a {
   touch-action: none;
 }
 
+.pairing-pill-b {
+  background: rgba(87, 143, 243, 0.18);
+  color: #1a4fa8;
+}
+
 .pairing-pill.dragging {
   box-shadow: 0 6px 16px rgba(15, 157, 138, 0.25);
   transform: translateY(-1px);
@@ -3676,7 +3688,7 @@ a {
 }
 
 .fee-player-name {
-  font-family: "Manrope", system-ui, sans-serif;
+  font-family: inherit;
   font-size: 14px;
   font-weight: 600;
 }
@@ -4177,7 +4189,7 @@ a {
 }
 
 .mono {
-  font-family: "Manrope", system-ui, sans-serif;
+  font-family: inherit;
   font-size: 12px;
   color: var(--ink-soft);
 }

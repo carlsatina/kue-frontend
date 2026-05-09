@@ -32,7 +32,8 @@
 
     <!-- Empty state -->
     <div v-if="!session && !error" class="empty-state">
-      No active session. Start one from the home screen.
+      No active session.
+      <button class="button button-compact" style="margin-top:12px" @click="openCreateSession">Create Session</button>
     </div>
     <div v-else-if="balances.length === 0 && session" class="empty-state">
       No players with fees yet.
@@ -129,11 +130,12 @@
         <button v-else class="button ghost button-compact attach-btn" @click="fileInput.click()">
           Attach Proof
         </button>
+        <p v-if="!proofFile" class="proof-required-hint">Required for E-wallet</p>
       </div>
 
       <div class="grid two">
         <button class="button" @click="record('cash')">Cash</button>
-        <button class="button secondary" @click="record('e-wallet')">E‑wallet</button>
+        <button class="button secondary" :disabled="!proofFile" @click="record('e-wallet')">E‑wallet</button>
       </div>
       <button class="button ghost" @click="closePayment">Cancel</button>
     </div>
@@ -194,6 +196,10 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { api } from "../api.js";
 import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.js";
+
+function openCreateSession() {
+  document.dispatchEvent(new Event("createSession:open"));
+}
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 const BASE_URL = API_URL.replace(/\/api$/, "");
@@ -648,6 +654,13 @@ watch(selectedSessionId, load);
 .proof-attach-area { margin: 4px 0 12px; }
 
 .attach-btn { width: 100%; }
+
+.proof-required-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--ink-soft);
+  text-align: center;
+}
 
 .proof-preview-wrap {
   display: flex;

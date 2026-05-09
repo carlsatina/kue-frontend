@@ -12,7 +12,6 @@
       </div>
     </div>
 
-    <!-- Loading -->
     <div v-if="loading" class="loading-hint">Loading team…</div>
 
     <template v-else-if="team">
@@ -25,69 +24,102 @@
         </div>
       </div>
 
-      <!-- Session call-to-action -->
-      <div class="session-cta" v-if="session?.status === 'open'">
-        <div class="session-cta-body">
-          <div class="session-cta-icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
-          </div>
-          <div>
-            <strong>{{ session.name }}</strong>
-            <p class="text-muted">Select members below to add them to this session.</p>
-          </div>
-        </div>
-        <button class="button button-compact" @click="openSessionAddModal">Add to Session</button>
-      </div>
-      <div v-else class="session-inactive-hint">
-        <p class="text-muted">No active session. Open a session to check in team members.</p>
-      </div>
-
+      <!-- Session CTA -->
       <!-- Roster section -->
       <div class="detail-section">
         <div class="section-header">
-          <h2 class="section-title">Roster</h2>
+          <h2 class="section-title">
+            Roster
+            <span class="section-count">{{ teamMembers.length }}</span>
+          </h2>
           <button class="button ghost button-compact" @click="openAddPlayerModal">+ New Player</button>
         </div>
-        <p class="text-muted">{{ rosterHint }}</p>
 
-        <div class="roster-filters">
-          <label class="teams-toggle">
-            <input type="checkbox" v-model="showUnassigned" />
-            <span>Show unassigned players</span>
-          </label>
-          <label class="teams-toggle">
-            <input type="checkbox" v-model="includeOtherTeams" />
-            <span>Show players from other teams</span>
-          </label>
+        <!-- Add existing player search -->
+        <div class="add-to-team-wrap">
+          <div class="skill-filter-chips">
+            <button
+              v-for="f in ['All', ...skillLevels]"
+              :key="f"
+              class="skill-filter-chip"
+              :class="[{ active: addSkillFilter === f }, f !== 'All' ? `skill-${f.toLowerCase()}` : '']"
+              @mousedown.prevent="addSkillFilter = f"
+            >{{ f }}</button>
+          </div>
+          <input
+            class="input"
+            v-model="addPlayerSearch"
+            placeholder="Search players to add…"
+            @focus="showAddResults = true"
+            @blur="onAddSearchBlur"
+            autocomplete="off"
+          />
+          <div v-if="showAddResults && addPlayerSearch.trim()" class="add-player-dropdown">
+            <button
+              v-for="p in addPlayerResults"
+              :key="p.id"
+              class="add-player-option"
+              @mousedown.prevent="addPlayerToTeam(p)"
+            >
+              <span class="add-player-name">{{ p.nickname || p.fullName }}</span>
+              <span v-if="p.teamId && p.teamId !== teamId" class="add-player-tag other-team">{{ p.team?.name || 'Other team' }}</span>
+              <span class="add-player-skill-badge" :class="`skill-${(p.skillLevel || 'Beginner').toLowerCase()}`">
+                {{ p.skillLevel || 'Beginner' }}
+              </span>
+            </button>
+            <p v-if="addPlayerResults.length === 0" class="add-player-empty">No players found.</p>
+          </div>
         </div>
 
-        <div class="roster-search-row">
-          <button class="button ghost button-compact" type="button" @click="toggleRosterSearch">
-            {{ showRosterSearch ? 'Hide Search' : 'Search Players' }}
-          </button>
-          <input v-if="showRosterSearch" class="input" v-model="rosterSearch" placeholder="Search players" />
+        <!-- Roster skill filter -->
+        <div class="skill-filter-chips">
+          <button
+            v-for="f in ['All', ...skillLevels]"
+            :key="f"
+            class="skill-filter-chip"
+            :class="[{ active: rosterSkillFilter === f }, f !== 'All' ? `skill-${f.toLowerCase()}` : '']"
+            @click="rosterSkillFilter = f"
+          >{{ f }}</button>
         </div>
 
-        <div class="team-member-list">
-          <label
-            v-for="player in filteredRosterPlayers"
-            :key="player.id"
-            class="team-member-row"
-          >
-            <input type="checkbox" :value="player.id" v-model="memberIds" />
-            <span>{{ player.nickname || player.fullName }}</span>
-            <span
-              v-if="player.team && player.team.id !== teamId"
-              class="member-other-team"
-            >{{ player.team.name }}</span>
-          </label>
+        <!-- Live roster list -->
+        <div v-if="teamMembers.length === 0" class="empty-hint">No members yet. Search above or create a new player.</div>
+        <div v-else-if="filteredRosterMembers.length === 0" class="empty-hint">No {{ rosterSkillFilter }} members in this team.</div>
+        <div v-else class="roster-live-list">
+          <div v-for="player in filteredRosterMembers" :key="player.id" class="roster-live-row" @click="openCheckinModal(player)">
+            <div class="roster-player-info">
+              <span class="roster-player-name">{{ player.nickname || player.fullName }}</span>
+              <span
+                v-if="isPlayerInSession(player.id)"
+                class="session-status-icon"
+                :class="`status-${sessionStatusByPlayerId(player.id) || 'in_session'}`"
+                :title="sessionStatusLabel(sessionStatusByPlayerId(player.id))"
+              >
+                <!-- checked_in -->
+                <svg v-if="sessionStatusByPlayerId(player.id) === 'checked_in'" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+                <!-- present -->
+                <svg v-else-if="sessionStatusByPlayerId(player.id) === 'present'" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                <!-- away -->
+                <svg v-else-if="sessionStatusByPlayerId(player.id) === 'away'" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                <!-- fallback -->
+                <svg v-else viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M10 8l6 4-6 4V8z"/></svg>
+              </span>
+            </div>
+            <select
+              class="skill-select"
+              :class="`skill-${(player.skillLevel || 'Beginner').toLowerCase()}`"
+              :value="player.skillLevel || 'Beginner'"
+              @click.stop
+              @change="updateSkillLevel(player, $event.target.value)"
+            >
+              <option v-for="level in skillLevels" :key="level" :value="level">{{ level }}</option>
+            </select>
+            <button class="remove-member-btn" @click.stop="removeFromTeam(player)" title="Remove from team">
+              <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
         </div>
 
-        <div class="roster-actions">
-          <button class="button button-compact" @click="saveMembers">Save Members</button>
-          <button class="button ghost button-compact" @click="selectAllRosterMembers">Select all</button>
-          <button class="button ghost button-compact" @click="clearRosterMembers">Clear</button>
-        </div>
         <div v-if="membersError" class="notice">{{ membersError }}</div>
       </div>
     </template>
@@ -140,10 +172,38 @@
       </div>
     </div>
 
-    <!-- Add player modal -->
+    <!-- Check-in session picker modal -->
+    <div v-if="showCheckinModal" class="modal-backdrop">
+      <div class="modal-card">
+        <h3>Check In — {{ checkinTarget?.nickname || checkinTarget?.fullName }}</h3>
+        <p class="text-muted" style="margin: 0 0 14px">Select a session to check this player into.</p>
+        <div v-if="checkinLoading" class="checkin-sessions-loading">Loading sessions…</div>
+        <div v-else-if="openSessions.length === 0" class="checkin-sessions-empty">No open sessions available.</div>
+        <div v-else class="checkin-session-list">
+          <button
+            v-for="s in openSessions"
+            :key="s.id"
+            class="checkin-session-row"
+            @click="confirmCheckin(s)"
+          >
+            <div class="checkin-session-info">
+              <span class="checkin-session-name">{{ s.name }}</span>
+              <span class="checkin-session-meta">{{ s.gameType === 'doubles' ? 'Doubles' : 'Singles' }}{{ s.mode === 'tournament' ? ' · Tournament' : '' }}</span>
+            </div>
+            <svg class="checkin-session-arrow" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+        <div v-if="checkinError" class="notice" style="margin-top: 12px">{{ checkinError }}</div>
+        <div style="margin-top: 16px">
+          <button class="button ghost" style="width: 100%" @click="closeCheckinModal">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add new player modal -->
     <div v-if="showAddPlayerModal" class="modal-backdrop">
       <div class="modal-card">
-        <h3>Add player</h3>
+        <h3>New Player</h3>
         <div class="field">
           <label class="field-label">Name</label>
           <input class="input" v-model="newPlayerName" placeholder="Player name" />
@@ -168,73 +228,11 @@
         </div>
       </div>
     </div>
-
-    <!-- Session add modal -->
-    <div v-if="showSessionAddModal" class="modal-backdrop">
-      <div class="modal-card session-add-modal">
-        <h3>Add team to session</h3>
-        <div class="field">
-          <label class="field-label">Session</label>
-          <select
-            class="input"
-            v-model="selectedSessionId"
-            @change="handleSessionSelectChange"
-            :disabled="openSessions.length === 0"
-          >
-            <option v-if="openSessions.length === 0" value="">No open sessions</option>
-            <option v-for="item in openSessions" :key="item.id" :value="item.id">
-              {{ item.name || 'Session' }} · {{ item.status }}
-            </option>
-          </select>
-        </div>
-        <div v-if="!session || session.status !== 'open'" class="notice">Open a session to add players.</div>
-        <div class="field">
-          <label class="field-label">Select members to add</label>
-          <input class="input" v-model="sessionRosterSearch" placeholder="Search team members" />
-          <div class="team-member-list">
-            <label
-              v-for="player in filteredSessionMembers"
-              :key="`session-${player.id}`"
-              class="team-member-row"
-              :class="{ 'in-session': isPlayerInSession(player.id) }"
-            >
-              <input
-                type="checkbox"
-                :value="player.id"
-                v-model="sessionMemberIds"
-                :disabled="isPlayerInSession(player.id)"
-              />
-              <span>{{ player.nickname || player.fullName }}</span>
-              <span v-if="isPlayerInSession(player.id)" class="subtitle compact session-member-pill">
-                {{ sessionStatusLabel(sessionStatusByPlayerId(player.id)) }}
-              </span>
-              <span
-                v-else-if="otherSessionInfo(player.id).length"
-                class="subtitle compact session-member-pill other-session"
-                :title="otherSessionTitle(player.id)"
-              >{{ otherSessionLabel(player.id) }}</span>
-            </label>
-          </div>
-        </div>
-        <div class="inline-actions session-add-actions">
-          <button class="button ghost button-compact" @click="selectAllSessionMembers">Select all</button>
-          <button class="button ghost button-compact" @click="clearSessionMembers">Clear</button>
-        </div>
-        <div class="grid two session-add-actions">
-          <button class="button ghost button-compact" @click="closeSessionAddModal">Cancel</button>
-          <button
-            class="button button-compact"
-            @click="confirmSessionAdd"
-            :disabled="!session || session.status !== 'open'"
-          >Add to Session</button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { api } from "../api.js";
 import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.js";
@@ -246,33 +244,28 @@ const teamId = computed(() => route.params.id);
 const team = ref(null);
 const players = ref([]);
 const sessionPlayers = ref([]);
-const otherSessionPlayers = ref({});
 const session = ref(null);
-const openSessions = ref([]);
 const loading = ref(true);
 
 const editTeamName = ref("");
 const editTeamColor = ref("#2a9d8f");
-const memberIds = ref([]);
-const sessionMemberIds = ref([]);
 const membersError = ref("");
-const sessionRosterSearch = ref("");
-const rosterSearch = ref("");
-const includeOtherTeams = ref(false);
-const showUnassigned = ref(true);
-const showRosterSearch = ref(false);
 const editError = ref("");
 
 const showEditTeam = ref(false);
 const showDeleteTeam = ref(false);
 const showAddPlayerModal = ref(false);
-const showSessionAddModal = ref(false);
 const newPlayerName = ref("");
 const newPlayerSkill = ref("Beginner");
 const addPlayerError = ref("");
 const showToast = ref(false);
 const toastMessage = ref("");
 let toastTimer = null;
+
+const addPlayerSearch = ref("");
+const showAddResults = ref(false);
+const addSkillFilter = ref("All");
+const rosterSkillFilter = ref("All");
 
 const colorSwatches = [
   "#2f7f73","#4a6fa5","#c27b54","#8f5e90","#2f4858",
@@ -291,37 +284,31 @@ const activeSessionPlayerIds = computed(
   () => new Set(sessionPlayers.value.filter((sp) => sp.status !== "done").map((sp) => sp.playerId))
 );
 
-const rosterHint = computed(() => {
-  if (includeOtherTeams.value && showUnassigned.value) return "Showing all players. Selecting moves them from their current team.";
-  if (includeOtherTeams.value && !showUnassigned.value) return "Showing current team and other teams. Unassigned players are hidden.";
-  if (!includeOtherTeams.value && showUnassigned.value) return "Showing unassigned players and current team members.";
-  return "Showing current team members only.";
+
+const addPlayerResults = computed(() => {
+  const q = addPlayerSearch.value.trim().toLowerCase();
+  if (!q) return [];
+  const currentIds = new Set(teamMembers.value.map((p) => p.id));
+  return players.value
+    .filter((p) => {
+      if (currentIds.has(p.id)) return false;
+      if (addSkillFilter.value !== "All" && (p.skillLevel || "Beginner") !== addSkillFilter.value) return false;
+      const name = `${p.fullName} ${p.nickname || ""}`.toLowerCase();
+      return name.includes(q);
+    })
+    .slice(0, 8);
 });
 
-const filteredRosterPlayers = computed(() => {
-  const id = teamId.value;
-  const available = players.value.filter((p) => {
-    const currentTeamId = p.teamId || p.team?.id || null;
-    if (!showUnassigned.value && !currentTeamId) return false;
-    if (!includeOtherTeams.value && currentTeamId && currentTeamId !== id) return false;
-    return true;
-  });
-  if (!rosterSearch.value.trim()) return available;
-  const term = rosterSearch.value.trim().toLowerCase();
-  return available.filter((p) => `${p.fullName} ${p.nickname || ""}`.toLowerCase().includes(term));
-});
-
-const filteredSessionMembers = computed(() => {
-  if (!sessionRosterSearch.value.trim()) return teamMembers.value;
-  const term = sessionRosterSearch.value.trim().toLowerCase();
-  return teamMembers.value.filter((p) => `${p.fullName} ${p.nickname || ""}`.toLowerCase().includes(term));
+const filteredRosterMembers = computed(() => {
+  if (rosterSkillFilter.value === "All") return teamMembers.value;
+  return teamMembers.value.filter((p) => (p.skillLevel || "Beginner") === rosterSkillFilter.value);
 });
 
 async function load() {
   loading.value = true;
   try {
     const [teamResult, playerResult] = await Promise.allSettled([
-      api.team ? api.team(teamId.value) : api.listTeams().then((ts) => ts.find((t) => t.id === teamId.value)),
+      api.listTeams().then((ts) => ts.find((t) => t.id === teamId.value)),
       api.listPlayers()
     ]);
     team.value = teamResult.status === "fulfilled" ? teamResult.value : null;
@@ -329,19 +316,12 @@ async function load() {
     if (team.value) {
       editTeamName.value = team.value.name || "";
       editTeamColor.value = team.value.color || "#2a9d8f";
-      memberIds.value = players.value.filter((p) => p.teamId === teamId.value).map((p) => p.id);
     }
     await loadSession();
     await loadSessionPlayers();
-    await loadOtherSessionsPlayers();
   } finally {
     loading.value = false;
   }
-}
-
-async function loadOpenSessions() {
-  try { openSessions.value = await api.listSessions("open"); }
-  catch { openSessions.value = []; }
 }
 
 async function loadSession() {
@@ -357,7 +337,6 @@ async function loadSession() {
   } catch {
     session.value = null;
     sessionPlayers.value = [];
-    otherSessionPlayers.value = {};
   }
 }
 
@@ -367,43 +346,14 @@ async function loadSessionPlayers() {
   catch { sessionPlayers.value = []; }
 }
 
-async function loadOtherSessionsPlayers() {
-  otherSessionPlayers.value = {};
-  if (!session.value?.id) return;
-  try {
-    const sessions = await api.listSessions("open");
-    const others = (sessions || []).filter((s) => s.id !== session.value.id);
-    if (!others.length) return;
-    const results = await Promise.allSettled(others.map((s) => api.sessionPlayers(s.id)));
-    const map = {};
-    results.forEach((r, idx) => {
-      if (r.status !== "fulfilled") return;
-      const s = others[idx];
-      (r.value || []).filter((sp) => sp.status !== "done").forEach((sp) => {
-        if (!map[sp.playerId]) map[sp.playerId] = [];
-        map[sp.playerId].push({ sessionId: s.id, name: s.name || "Session", status: sp.status });
-      });
-    });
-    otherSessionPlayers.value = map;
-  } catch {
-    otherSessionPlayers.value = {};
-  }
-}
-
-async function handleSessionSelectChange() {
-  if (!selectedSessionId.value) return;
-  setSelectedSessionId(selectedSessionId.value);
-  await loadSession();
-  await loadSessionPlayers();
-  await loadOtherSessionsPlayers();
-}
-
 function triggerToast(msg) {
   toastMessage.value = msg;
   showToast.value = true;
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { showToast.value = false; }, 2600);
 }
+
+// ── Team edit / delete ────────────────────────────────────────────
 
 function openEditTeam() { editError.value = ""; showEditTeam.value = true; }
 function closeEditTeam() { showEditTeam.value = false; editError.value = ""; }
@@ -434,18 +384,107 @@ async function confirmDeleteTeam() {
   }
 }
 
-async function saveMembers() {
+// ── Roster: add existing player ───────────────────────────────────
+
+function onAddSearchBlur() {
+  setTimeout(() => { showAddResults.value = false; }, 150);
+}
+
+async function addPlayerToTeam(player) {
+  addPlayerSearch.value = "";
+  showAddResults.value = false;
   membersError.value = "";
   try {
-    await api.updateTeamMembers(teamId.value, { playerIds: memberIds.value.slice() });
-    players.value = await api.listPlayers();
-    triggerToast(`Members saved for ${team.value?.name || "team"}.`);
+    const newIds = [...teamMembers.value.map((p) => p.id), player.id];
+    await api.updateTeamMembers(teamId.value, { playerIds: newIds });
+    const idx = players.value.findIndex((p) => p.id === player.id);
+    if (idx !== -1) players.value[idx] = { ...players.value[idx], teamId: teamId.value };
+    triggerToast(`${player.nickname || player.fullName} added to team.`);
   } catch (err) {
-    membersError.value = err.message || "Unable to update team members";
+    membersError.value = err.message || "Unable to add player";
   }
 }
 
-function openAddPlayerModal() { addPlayerError.value = ""; newPlayerName.value = ""; newPlayerSkill.value = "Beginner"; showAddPlayerModal.value = true; }
+// ── Roster: remove player ─────────────────────────────────────────
+
+async function removeFromTeam(player) {
+  membersError.value = "";
+  try {
+    const newIds = teamMembers.value.filter((p) => p.id !== player.id).map((p) => p.id);
+    await api.updateTeamMembers(teamId.value, { playerIds: newIds });
+    const idx = players.value.findIndex((p) => p.id === player.id);
+    if (idx !== -1) players.value[idx] = { ...players.value[idx], teamId: null };
+    triggerToast(`${player.nickname || player.fullName} removed from team.`);
+  } catch (err) {
+    membersError.value = err.message || "Unable to remove player";
+  }
+}
+
+// ── Roster: update skill level ────────────────────────────────────
+
+async function updateSkillLevel(player, level) {
+  membersError.value = "";
+  try {
+    await api.updatePlayer(player.id, { skillLevel: level });
+    const idx = players.value.findIndex((p) => p.id === player.id);
+    if (idx !== -1) players.value[idx] = { ...players.value[idx], skillLevel: level };
+    triggerToast(`${player.nickname || player.fullName} → ${level}.`);
+  } catch (err) {
+    membersError.value = err.message || "Unable to update skill level";
+  }
+}
+
+// ── Session check-in modal ────────────────────────────────────────
+
+const showCheckinModal = ref(false);
+const checkinTarget = ref(null);
+const openSessions = ref([]);
+const checkinLoading = ref(false);
+const checkinError = ref("");
+
+async function openCheckinModal(player) {
+  checkinTarget.value = player;
+  checkinError.value = "";
+  openSessions.value = [];
+  showCheckinModal.value = true;
+  checkinLoading.value = true;
+  try {
+    openSessions.value = await api.listSessions("open");
+  } catch {
+    checkinError.value = "Unable to load sessions.";
+  } finally {
+    checkinLoading.value = false;
+  }
+}
+
+function closeCheckinModal() {
+  showCheckinModal.value = false;
+  checkinTarget.value = null;
+  openSessions.value = [];
+  checkinError.value = "";
+}
+
+async function confirmCheckin(sessionObj) {
+  checkinError.value = "";
+  const player = checkinTarget.value;
+  try {
+    await api.checkinPlayer(player.id, { sessionId: sessionObj.id });
+    await loadSessionPlayers();
+    closeCheckinModal();
+    triggerToast(`${player.nickname || player.fullName} checked in to ${sessionObj.name}.`);
+  } catch (err) {
+    checkinError.value = err.message || "Unable to check in player";
+  }
+}
+
+// ── Add new player modal ──────────────────────────────────────────
+
+function openAddPlayerModal() {
+  addPlayerError.value = "";
+  newPlayerName.value = "";
+  newPlayerSkill.value = "Beginner";
+  showAddPlayerModal.value = true;
+}
 function closeAddPlayerModal() { showAddPlayerModal.value = false; addPlayerError.value = ""; }
 
 async function createPlayerFromTeam() {
@@ -453,84 +492,26 @@ async function createPlayerFromTeam() {
   const name = newPlayerName.value.trim();
   if (!name) { addPlayerError.value = "Player name is required."; return; }
   try {
-    await api.createPlayer({ fullName: name, skillLevel: newPlayerSkill.value });
+    const created = await api.createPlayer({ fullName: name, skillLevel: newPlayerSkill.value });
+    const newIds = [...teamMembers.value.map((p) => p.id), created.id];
+    await api.updateTeamMembers(teamId.value, { playerIds: newIds });
     players.value = await api.listPlayers();
     showAddPlayerModal.value = false;
-    triggerToast(`${name} added.`);
+    triggerToast(`${name} added to team.`);
   } catch (err) {
     addPlayerError.value = err.message || "Unable to add player";
   }
 }
 
-function toggleRosterSearch() {
-  showRosterSearch.value = !showRosterSearch.value;
-  if (!showRosterSearch.value) rosterSearch.value = "";
-}
-
-function selectAllRosterMembers() { memberIds.value = filteredRosterPlayers.value.map((p) => p.id); }
-function clearRosterMembers() { memberIds.value = []; }
-function selectAllSessionMembers() {
-  sessionMemberIds.value = teamMembers.value.map((p) => p.id).filter((id) => !isPlayerInSession(id));
-}
-function clearSessionMembers() { sessionMemberIds.value = []; }
-
-function openSessionAddModal() {
-  loadOpenSessions().then(async () => {
-    const openIds = new Set(openSessions.value.map((s) => s.id));
-    if (!selectedSessionId.value || !openIds.has(selectedSessionId.value)) {
-      const fallbackId = openSessions.value[0]?.id || "";
-      if (fallbackId) setSelectedSessionId(fallbackId);
-    }
-    await loadSession();
-    await loadSessionPlayers();
-    await loadOtherSessionsPlayers();
-    sessionMemberIds.value = teamMembers.value.map((p) => p.id).filter((id) => !isPlayerInSession(id));
-    showSessionAddModal.value = true;
-  });
-}
-function closeSessionAddModal() { showSessionAddModal.value = false; }
-
-async function checkInTeam() {
-  membersError.value = "";
-  if (!session.value || session.value.status !== "open") { membersError.value = "Session is not open."; return; }
-  const targetIds = sessionMemberIds.value.filter((id) => !isPlayerInSession(id));
-  if (!targetIds.length) {
-    membersError.value = sessionMemberIds.value.length ? "Selected players are already in session." : "Select at least one member to add.";
-    return;
-  }
-  try {
-    for (const playerId of targetIds) {
-      await api.checkinPlayer(playerId, { sessionId: session.value.id });
-    }
-    triggerToast(`Added ${team.value?.name || "team"} to ${session.value?.name || "session"}.`);
-    await loadSessionPlayers();
-    await loadOtherSessionsPlayers();
-  } catch (err) {
-    membersError.value = err.message || "Unable to add team to session";
-  }
-}
-
-async function confirmSessionAdd() {
-  await checkInTeam();
-  if (!membersError.value) showSessionAddModal.value = false;
-}
+// ── Helpers ───────────────────────────────────────────────────────
 
 function isPlayerInSession(playerId) { return activeSessionPlayerIds.value.has(playerId); }
 function sessionStatusByPlayerId(playerId) { return sessionPlayerStatusMap.value.get(playerId) || null; }
 function sessionStatusLabel(status) {
   if (status === "present") return "Present";
   if (status === "away") return "Away";
-  if (status === "checked_in") return "Checked in";
-  return "In session";
-}
-function otherSessionInfo(playerId) { return otherSessionPlayers.value[playerId] || []; }
-function otherSessionLabel(playerId) {
-  const list = otherSessionInfo(playerId);
-  if (!list.length) return "";
-  return list.length === 1 ? `In ${list[0].name}` : `In ${list[0].name} +${list.length - 1}`;
-}
-function otherSessionTitle(playerId) {
-  return otherSessionInfo(playerId).map((i) => `${i.name} (${sessionStatusLabel(i.status)})`).join(", ");
+  if (status === "checked_in") return "Checked In";
+  return "In Session";
 }
 
 onMounted(load);
@@ -541,10 +522,10 @@ onBeforeUnmount(() => { if (toastTimer) clearTimeout(toastTimer); });
 .team-detail-page {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
 }
 
-/* ── Back button header ───────────────────────────────────────────── */
+/* ── Header ───────────────────────────────────────────────────────── */
 .detail-header {
   display: flex;
   align-items: center;
@@ -564,7 +545,6 @@ onBeforeUnmount(() => { if (toastTimer) clearTimeout(toastTimer); });
   cursor: pointer;
   padding: 0;
 }
-
 .back-button svg {
   width: 20px;
   height: 20px;
@@ -575,108 +555,85 @@ onBeforeUnmount(() => { if (toastTimer) clearTimeout(toastTimer); });
   stroke-linejoin: round;
 }
 
-.detail-header-actions {
-  display: flex;
-  gap: 8px;
-}
+.detail-header-actions { display: flex; gap: 8px; }
 
-/* ── Team identity ───────────────────────────────────────────────── */
-.team-identity {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
+/* ── Team identity ────────────────────────────────────────────────── */
+.team-identity { display: flex; align-items: center; gap: 10px; }
 
 .team-color-swatch {
-  width: 20px;
-  height: 20px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   flex-shrink: 0;
   border: 1px solid rgba(0,0,0,0.1);
 }
 
-.team-name {
-  font-size: 26px;
-  font-weight: 800;
-  margin: 0 0 2px;
-  color: var(--ink);
-}
+.team-name { font-size: 18px; font-weight: 700; margin: 0 0 1px; color: var(--ink); }
+.text-muted { font-size: 13px; color: var(--ink-soft); margin: 0; }
 
-.text-muted {
+/* ── Check-in session picker modal ────────────────────────────────── */
+.checkin-sessions-loading,
+.checkin-sessions-empty {
   font-size: 14px;
   color: var(--ink-soft);
-  margin: 0;
-}
-
-/* ── Session CTA ─────────────────────────────────────────────────── */
-.session-cta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  background: linear-gradient(135deg, #1a237e 0%, #1565c0 55%, #00695c 100%);
-  color: #ffffff;
-  border-radius: var(--radius-sm);
-  padding: 16px;
-  flex-wrap: wrap;
-}
-
-.session-cta-body {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.session-cta-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.session-cta-icon svg {
-  width: 20px;
-  height: 20px;
-  fill: #ffffff;
-}
-
-.session-cta strong {
-  display: block;
-  font-size: 15px;
-}
-
-.session-cta .text-muted {
-  color: rgba(255,255,255,0.75);
-  font-size: 13px;
-  margin-top: 2px;
-}
-
-.session-cta .button {
-  background: rgba(255,255,255,0.2);
-  color: #ffffff;
-  border: 1px solid rgba(255,255,255,0.3);
-  white-space: nowrap;
-}
-
-.session-cta .button:hover {
-  background: rgba(255,255,255,0.3);
-}
-
-.session-inactive-hint {
   padding: 12px 0;
 }
 
-/* ── Detail sections ─────────────────────────────────────────────── */
+.checkin-session-list {
+  display: flex;
+  flex-direction: column;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.checkin-session-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+.checkin-session-row:last-child { border-bottom: none; }
+.checkin-session-row:hover { background: rgba(15, 157, 138, 0.07); }
+
+.checkin-session-info { flex: 1; min-width: 0; }
+.checkin-session-name {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.checkin-session-meta {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+
+.checkin-session-arrow {
+  width: 18px;
+  height: 18px;
+  stroke: var(--ink-soft);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
+/* ── Detail section ───────────────────────────────────────────────── */
 .detail-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   border-top: 1px solid var(--border);
-  padding-top: 20px;
+  padding-top: 14px;
 }
 
 .section-header {
@@ -687,46 +644,249 @@ onBeforeUnmount(() => { if (toastTimer) clearTimeout(toastTimer); });
 }
 
 .section-title {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 600;
   margin: 0;
   color: var(--ink);
-}
-
-/* ── Roster filters / search ─────────────────────────────────────── */
-.roster-filters {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 6px;
 }
 
-.roster-search-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.roster-search-row .input {
-  flex: 1;
-  min-width: 140px;
-}
-
-/* ── Member note ─────────────────────────────────────────────────── */
-.member-other-team {
-  font-size: 12px;
+.section-count {
+  font-size: 13px;
+  font-weight: 600;
   color: var(--ink-soft);
-  margin-left: auto;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 999px;
 }
 
-/* ── Roster actions ──────────────────────────────────────────────── */
-.roster-actions {
+/* ── Add-to-team search ───────────────────────────────────────────── */
+.add-to-team-wrap { position: relative; }
+
+.add-player-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  z-index: 100;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.add-player-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+.add-player-option:last-child { border-bottom: none; }
+.add-player-option:hover { background: rgba(15, 157, 138, 0.07); }
+
+.add-player-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.add-player-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.add-player-tag.other-team {
+  background: rgba(245, 158, 11, 0.15);
+  color: #92400e;
+}
+
+.add-player-empty {
+  padding: 12px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+/* ── Skill badge (in dropdown) ────────────────────────────────────── */
+.add-player-skill-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+/* ── Live roster list ─────────────────────────────────────────────── */
+.roster-live-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.roster-live-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.roster-live-row:last-child { border-bottom: none; }
+.roster-live-row:hover { background: rgba(15, 157, 138, 0.06); }
+
+.roster-player-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.roster-player-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-status-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.session-status-icon svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.status-checked_in  { background: rgba(15,157,138,0.14); }
+.status-checked_in svg { stroke: var(--accent); }
+.status-present     { background: rgba(34,197,94,0.15); }
+.status-present svg { stroke: #16a34a; fill: #16a34a; }
+.status-away        { background: rgba(245,158,11,0.15); }
+.status-away svg    { stroke: #d97706; }
+.status-in_session  { background: rgba(99,102,241,0.15); }
+.status-in_session svg { stroke: #4f46e5; fill: #4f46e5; }
+
+/* ── Skill select ─────────────────────────────────────────────────── */
+.skill-select {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 26px 5px 11px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  flex-shrink: 0;
+  transition: border-color 0.15s;
+  max-width: 130px;
+}
+.skill-select:focus { outline: none; border-color: var(--accent); }
+
+.skill-select.skill-beginner    { background-color: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+.skill-select.skill-intermediate{ background-color: rgba(59,130,246,0.1); color: #1d4ed8; border-color: rgba(59,130,246,0.35); }
+.skill-select.skill-advance     { background-color: rgba(245,158,11,0.1); color: #b45309; border-color: rgba(245,158,11,0.35); }
+.skill-select.skill-elite       { background-color: rgba(139,92,246,0.1); color: #6d28d9; border-color: rgba(139,92,246,0.35); }
+
+/* same palette for dropdown badges */
+.add-player-skill-badge.skill-beginner    { background: #f1f5f9; color: #475569; }
+.add-player-skill-badge.skill-intermediate{ background: rgba(59,130,246,0.1); color: #1d4ed8; }
+.add-player-skill-badge.skill-advance     { background: rgba(245,158,11,0.1); color: #b45309; }
+.add-player-skill-badge.skill-elite       { background: rgba(139,92,246,0.1); color: #6d28d9; }
+
+/* ── Remove button ────────────────────────────────────────────────── */
+.remove-member-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border);
+  background: white;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: border-color 0.15s, background 0.15s;
+}
+.remove-member-btn svg {
+  width: 14px;
+  height: 14px;
+  stroke: var(--ink-soft);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.remove-member-btn:hover { border-color: rgba(185,28,28,0.45); background: rgba(185,28,28,0.05); }
+.remove-member-btn:hover svg { stroke: #b91c1c; }
+
+/* ── Skill filter chips ───────────────────────────────────────────── */
+.skill-filter-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
-/* ── Loading / empty ─────────────────────────────────────────────── */
+.skill-filter-chip {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: #f8fafc;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.skill-filter-chip:hover { border-color: var(--accent); color: var(--accent); }
+.skill-filter-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.skill-filter-chip.skill-beginner.active     { background: #475569; border-color: #475569; color: #fff; }
+.skill-filter-chip.skill-intermediate.active { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.skill-filter-chip.skill-advance.active      { background: #b45309; border-color: #b45309; color: #fff; }
+.skill-filter-chip.skill-elite.active        { background: #6d28d9; border-color: #6d28d9; color: #fff; }
+
+/* ── Empty / loading ──────────────────────────────────────────────── */
+.empty-hint {
+  font-size: 14px;
+  color: var(--ink-soft);
+  padding: 16px 0;
+}
+
 .loading-hint,
 .empty-state {
   font-size: 16px;

@@ -230,8 +230,16 @@ onMounted(load);
 <style scoped>
 .pf-wrap {
   min-height: 100vh;
+  margin: 0 -16px;
   padding: 20px 16px 48px;
   background: var(--bg, #f5f5f5);
+}
+
+@media (min-width: 880px) {
+  .pf-wrap {
+    margin: 0 -24px;
+    padding: 24px 24px 48px;
+  }
 }
 
 .pf-card {
@@ -345,18 +353,20 @@ onMounted(load);
   inset: 0;
   background: rgba(0,0,0,0.5);
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
   z-index: 100;
-  padding: 0 0 env(safe-area-inset-bottom, 0);
+  padding: 16px;
 }
 
 .pf-modal {
   background: #fff;
-  border-radius: 16px 16px 0 0;
-  padding: 24px 20px 32px;
+  border-radius: 16px;
+  padding: 24px 20px;
   width: 100%;
   max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;

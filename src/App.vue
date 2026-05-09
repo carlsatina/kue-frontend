@@ -34,11 +34,12 @@
         </nav>
         <div class="session-switcher">
           <div class="session-label">Session</div>
-          <select class="session-select" v-model="sessionSelection" :disabled="liveSessions.length === 0">
+          <select class="session-select" :value="sessionSelection" @change="handleSessionChange">
             <option v-if="liveSessions.length === 0" value="">No sessions</option>
             <option v-for="s in liveSessions" :key="s.id" :value="s.id">
               {{ s.name }} · {{ s.status === "open" ? "Active" : s.status }}
             </option>
+            <option value="__create__">+ Create Session</option>
           </select>
         </div>
       </div>
@@ -92,6 +93,49 @@
       title="Loading Match Data"
       message="Fetching the latest courts, queues, and rankings."
     />
+
+    <div v-if="showCreateSession" class="modal-backdrop">
+      <div class="modal-card session-create">
+        <h3>Create Session</h3>
+        <div class="field">
+          <label class="field-label">Session name</label>
+          <input class="input" v-model="newSessionName" />
+        </div>
+        <div class="field">
+          <label class="field-label">Game type</label>
+          <select class="input" v-model="newGameType">
+            <option value="doubles">Doubles</option>
+            <option value="singles">Singles</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label">Session mode</label>
+          <select class="input" v-model="newSessionMode">
+            <option value="usual">Usual</option>
+            <option value="tournament">Tournament</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label">Fee amount</label>
+          <input class="input" v-model.number="newFeeAmount" type="number" min="0" />
+        </div>
+        <div class="join-limits-row">
+          <div class="field field-inline">
+            <label class="field-label">Regular</label>
+            <input class="input" type="number" min="0" v-model.number="newRegularJoinLimit" />
+          </div>
+          <div class="field field-inline">
+            <label class="field-label">New joiner</label>
+            <input class="input" type="number" min="0" v-model.number="newJoinerLimit" />
+          </div>
+        </div>
+        <div v-if="createError" class="notice">{{ createError }}</div>
+        <div class="grid two">
+          <button class="button ghost" @click="closeCreateSession">Cancel</button>
+          <button class="button" @click="submitCreateSession">Create Session</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -101,6 +145,16 @@ import { useRoute, useRouter } from "vue-router";
 import { api, isReadingFromBackend } from "./api.js";
 import { pendingSessionId, selectedSessionId, setPendingSessionId, setSelectedSessionId } from "./state/sessionStore.js";
 import GameLoadingModal from "./components/GameLoadingModal.vue";
+
+// Create session modal state
+const showCreateSession = ref(false);
+const newSessionName = ref("Evening Open Play");
+const newGameType = ref("doubles");
+const newSessionMode = ref("usual");
+const newFeeAmount = ref(100);
+const newRegularJoinLimit = ref(0);
+const newJoinerLimit = ref(0);
+const createError = ref("");
 
 const route = useRoute();
 const router = useRouter();
@@ -135,10 +189,55 @@ const showTeamsNav = computed(() => {
 });
 const navClass = computed(() => (showTeamsNav.value ? "nav-6" : "nav-5"));
 
-const sessionSelection = computed({
-  get: () => selectedSessionId.value,
-  set: (value) => setSelectedSessionId(value)
-});
+const sessionSelection = computed(() => selectedSessionId.value);
+
+function handleSessionChange(e) {
+  const val = e.target.value;
+  if (val === "__create__") {
+    e.target.value = sessionSelection.value;
+    openCreateSession();
+  } else {
+    setSelectedSessionId(val);
+  }
+}
+
+function openCreateSession() {
+  createError.value = "";
+  newSessionName.value = "Evening Open Play";
+  newGameType.value = "doubles";
+  newSessionMode.value = "usual";
+  newFeeAmount.value = 100;
+  newRegularJoinLimit.value = 0;
+  newJoinerLimit.value = 0;
+  showCreateSession.value = true;
+}
+
+function closeCreateSession() {
+  showCreateSession.value = false;
+  createError.value = "";
+}
+
+async function submitCreateSession() {
+  createError.value = "";
+  try {
+    const created = await api.createSession({
+      name: newSessionName.value,
+      gameType: newGameType.value,
+      mode: newSessionMode.value,
+      feeMode: "flat",
+      feeAmount: Number(newFeeAmount.value),
+      regularJoinLimit: Math.max(0, Number(newRegularJoinLimit.value) || 0),
+      newJoinerLimit: Math.max(0, Number(newJoinerLimit.value) || 0),
+    });
+    await api.openSession(created.id);
+    setPendingSessionId(created.id);
+    showCreateSession.value = false;
+    await loadSessions();
+    setSelectedSessionId(created.id);
+  } catch (err) {
+    createError.value = err.message || "Unable to create session";
+  }
+}
 
 const activeSessionId = computed(() => liveSessions.value[0]?.id || "");
 
@@ -216,6 +315,7 @@ watch(
 onMounted(() => {
   loadSessions();
   document.addEventListener("sessions:updated", handleSessionsUpdated);
+  document.addEventListener("createSession:open", openCreateSession);
   window.addEventListener("auth:changed", handleAuthChanged);
   window.addEventListener("storage", handleAuthChanged);
 });
@@ -226,6 +326,7 @@ onUnmounted(() => {
     loadingTimer = null;
   }
   document.removeEventListener("sessions:updated", handleSessionsUpdated);
+  document.removeEventListener("createSession:open", openCreateSession);
   window.removeEventListener("auth:changed", handleAuthChanged);
   window.removeEventListener("storage", handleAuthChanged);
 });

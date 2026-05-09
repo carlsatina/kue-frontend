@@ -38,7 +38,8 @@
 
     <!-- Empty state -->
     <div v-if="!session" class="empty-state">
-      No active session. Start one from the home screen.
+      No active session.
+      <button class="button button-compact" style="margin-top:12px" @click="openCreateSession">Create Session</button>
     </div>
     <div v-else-if="rankedRows.length === 0" class="empty-state">
       No stats yet. Play some matches to see rankings.
@@ -104,6 +105,10 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { api } from "../api.js";
 import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.js";
+
+function openCreateSession() {
+  document.dispatchEvent(new Event("createSession:open"));
+}
 
 const session = ref(null);
 const rankedPlayers = ref([]);

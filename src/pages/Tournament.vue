@@ -7,6 +7,7 @@
         <h1 class="tournament-title">Bracket</h1>
         <p class="text-muted" v-if="session">{{ session.name }} · {{ matchFormatLabel }}</p>
         <p class="text-muted" v-else>Open a session to generate a bracket.</p>
+        <button v-if="!session" class="button button-compact" style="margin-top:10px" @click="openCreateSession">Create Session</button>
       </div>
       <div v-if="session" class="tournament-header-chips">
         <span class="info-chip">{{ joinedPlayers.length }} players</span>
@@ -285,6 +286,10 @@ import { api } from "../api.js";
 import { loadManualTeams, saveManualTeams } from "../utils/teamBuilder.js";
 import { SEED_MATCH_ID, applySeedOrder, extractSeedOrder } from "../utils/seedOrder.js";
 import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.js";
+
+function openCreateSession() {
+  document.dispatchEvent(new Event("createSession:open"));
+}
 
 const session = ref(null);
 const sessionPlayers = ref([]);
