@@ -131,6 +131,7 @@
           Attach Proof
         </button>
         <p v-if="!proofFile" class="proof-required-hint">Required for E-wallet</p>
+        <p v-if="proofLargeFile" class="proof-large-hint">Large file detected — will be auto-compressed to 200 KB.</p>
       </div>
 
       <div class="grid two">
@@ -216,6 +217,7 @@ const editFeeError = ref("");
 const proofFile = ref(null);
 const proofPreview = ref(null);
 const fileInput = ref(null);
+const proofLargeFile = ref(false);
 const proofLightbox = ref(null);
 const proofLightboxUrl = ref(null);
 const imgScale = ref(1);
@@ -307,11 +309,12 @@ function closePayment() {
 function onFileChange(e) {
   const file = e.target.files[0];
   if (!file) return;
-  if (file.size > 10 * 1024 * 1024) {
-    alert("Photo must be under 10 MB.");
+  if (file.size > 50 * 1024 * 1024) {
+    alert("Photo must be under 50 MB.");
     e.target.value = "";
     return;
   }
+  proofLargeFile.value = file.size > 10 * 1024 * 1024;
   proofFile.value = file;
   proofPreview.value = URL.createObjectURL(file);
 }
@@ -319,6 +322,7 @@ function onFileChange(e) {
 function removeProof() {
   proofFile.value = null;
   proofPreview.value = null;
+  proofLargeFile.value = false;
   if (fileInput.value) fileInput.value.value = "";
 }
 
@@ -654,6 +658,13 @@ watch(selectedSessionId, load);
 .proof-attach-area { margin: 4px 0 12px; }
 
 .attach-btn { width: 100%; }
+
+.proof-large-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #b45309;
+  text-align: center;
+}
 
 .proof-required-hint {
   margin: 6px 0 0;

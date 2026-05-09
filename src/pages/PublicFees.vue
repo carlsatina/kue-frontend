@@ -82,6 +82,7 @@
           <button v-else class="button ghost" style="width:100%" @click="fileInput.click()">
             Attach Screenshot
           </button>
+          <p v-if="proofLargeFile" class="pf-large-hint">Large file detected — will be auto-compressed to 200 KB.</p>
         </div>
 
         <div v-if="submitError" class="notice">{{ submitError }}</div>
@@ -122,6 +123,7 @@ const method = ref("gcash");
 const proofFile = ref(null);
 const proofPreview = ref(null);
 const fileInput = ref(null);
+const proofLargeFile = ref(false);
 const submitting = ref(false);
 const submitError = ref("");
 const lightbox = ref(null);
@@ -194,11 +196,12 @@ function closeModal() {
 function onFileChange(e) {
   const file = e.target.files[0];
   if (!file) return;
-  if (file.size > 10 * 1024 * 1024) {
-    alert("Photo must be under 10 MB.");
+  if (file.size > 50 * 1024 * 1024) {
+    alert("Photo must be under 50 MB.");
     e.target.value = "";
     return;
   }
+  proofLargeFile.value = file.size > 10 * 1024 * 1024;
   proofFile.value = file;
   proofPreview.value = URL.createObjectURL(file);
 }
@@ -206,6 +209,7 @@ function onFileChange(e) {
 function removeProof() {
   proofFile.value = null;
   proofPreview.value = null;
+  proofLargeFile.value = false;
   if (fileInput.value) fileInput.value.value = "";
 }
 
@@ -411,6 +415,13 @@ onMounted(load);
   border: none;
   cursor: pointer;
   padding: 0;
+}
+
+.pf-large-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #b45309;
+  text-align: center;
 }
 
 .pf-modal-actions {
