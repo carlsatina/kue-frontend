@@ -574,12 +574,28 @@ watch(selectedSessionId, load);
 
 /* ── Balance list ────────────────────────────────────────────────── */
 .balance-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+  display: grid;
+  grid-template-columns: 1fr;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .balance-list {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    background: var(--border);
+  }
+  .balance-row {
+    border-bottom: none;
+  }
+}
+
+@media (min-width: 1080px) {
+  .balance-list {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 .balance-row {

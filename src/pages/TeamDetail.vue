@@ -12,9 +12,7 @@
       </div>
     </div>
 
-    <div v-if="loading" class="loading-hint">Loading team…</div>
-
-    <template v-else-if="team">
+    <template v-if="!loading && team">
       <!-- Team identity -->
       <div class="team-identity">
         <span class="team-color-swatch" :style="{ backgroundColor: team.color || '#888' }"></span>
@@ -124,7 +122,7 @@
       </div>
     </template>
 
-    <p v-else class="empty-state">Team not found.</p>
+    <p v-if="!loading && !team" class="empty-state">Team not found.</p>
 
     <!-- Toast -->
     <div v-if="showToast" class="teams-toast">{{ toastMessage }}</div>
@@ -735,11 +733,23 @@ onBeforeUnmount(() => { if (toastTimer) clearTimeout(toastTimer); });
 
 /* ── Live roster list ─────────────────────────────────────────────── */
 .roster-live-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .roster-live-list {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    background: var(--border);
+  }
+  .roster-live-row {
+    border-bottom: none;
+  }
 }
 
 .roster-live-row {

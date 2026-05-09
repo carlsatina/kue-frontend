@@ -7,13 +7,13 @@
         <h1 class="teams-title">Teams</h1>
         <p class="text-muted">Create and manage teams for tournament sessions.</p>
       </div>
-      <p class="text-muted">{{ teams.length }} team{{ teams.length === 1 ? '' : 's' }}</p>
+      <p v-if="!loading" class="text-muted">{{ teams.length }} team{{ teams.length === 1 ? '' : 's' }}</p>
     </div>
 
     <!-- Main layout: list + manage panel side by side on desktop -->
     <div class="teams-layout">
       <!-- Team list -->
-      <div class="teams-list-section">
+      <div v-if="!loading" class="teams-list-section">
         <div class="teams-toolbar">
           <input class="input" v-model="teamSearch" placeholder="Search teams" />
           <button class="button button-compact" @click="openCreateTeam">Create Team</button>
@@ -83,6 +83,7 @@ import { api } from "../api.js";
 import { selectedSessionId } from "../state/sessionStore.js";
 
 const teams = ref([]);
+const loading = ref(true);
 const newTeamName = ref("");
 const newTeamColor = ref("#2a9d8f");
 const createError = ref("");
@@ -107,10 +108,13 @@ const filteredTeams = computed(() => {
 
 async function load() {
   listError.value = "";
+  loading.value = true;
   try {
     teams.value = await api.listTeams();
   } catch (err) {
     listError.value = err.message || "Unable to load teams";
+  } finally {
+    loading.value = false;
   }
 }
 

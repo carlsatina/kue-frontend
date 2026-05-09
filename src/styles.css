@@ -1947,9 +1947,9 @@ a {
   align-items: center;
 }
 
-@media (min-width: 720px) {
+@media (min-width: 768px) {
   .player-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

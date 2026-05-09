@@ -282,10 +282,31 @@ onMounted(load);
 
 /* Player list */
 .pf-list {
+  display: grid;
+  grid-template-columns: 1fr;
   background: #fff;
   border: 1px solid var(--border, #e0e0e0);
   border-radius: var(--radius-sm, 12px);
   overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .pf-list {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    background: var(--border, #e0e0e0);
+  }
+  .pf-row {
+    background: #fff;
+    border-bottom: none;
+  }
+  .pf-row.row-paid { background: #f8fffe; }
+}
+
+@media (min-width: 1080px) {
+  .pf-list {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 .pf-row {
