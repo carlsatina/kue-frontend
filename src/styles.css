@@ -2695,14 +2695,27 @@ a {
   color: var(--ink-soft);
 }
 
+/* Lock background scroll while any modal is open (toggled from App.vue) */
+html.modal-open,
+html.modal-open body {
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(31, 28, 23, 0.4);
-  display: grid;
-  place-items: center;
+  /* Flex + margin:auto on the card centers it when it fits, and lets it scroll
+     from the top (no clipping) when it's taller than the viewport. */
+  display: flex;
   padding: 20px;
-  z-index: 20;
+  /* Above the fixed mobile bottom nav (z-index 100) so it never overlaps modals */
+  z-index: 200;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .bracket-backdrop {
@@ -3448,6 +3461,11 @@ a {
   box-shadow: var(--shadow);
   display: grid;
   gap: 12px;
+  /* Centers within the flex backdrop; collapses to top-aligned + scroll when tall */
+  margin: auto;
+  /* Keep tall forms reachable on small screens / with the keyboard open */
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
 }
 
 .bracket-modal {

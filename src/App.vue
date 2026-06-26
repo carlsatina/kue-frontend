@@ -472,6 +472,13 @@ watch(
   { immediate: true }
 );
 
+// Lock background scrolling whenever any modal (.modal-backdrop) is open.
+let modalObserver = null;
+function syncModalScrollLock() {
+  const open = Boolean(document.querySelector(".modal-backdrop"));
+  document.documentElement.classList.toggle("modal-open", open);
+}
+
 onMounted(() => {
   loadSessions();
   document.addEventListener("sessions:updated", handleSessionsUpdated);
@@ -480,6 +487,9 @@ onMounted(() => {
   window.addEventListener("storage", handleAuthChanged);
   document.addEventListener("pointerdown", handleDocPointer);
   window.addEventListener("keydown", handleKeydown);
+  modalObserver = new MutationObserver(syncModalScrollLock);
+  modalObserver.observe(document.body, { childList: true, subtree: true });
+  syncModalScrollLock();
 });
 
 onUnmounted(() => {
@@ -493,6 +503,11 @@ onUnmounted(() => {
   window.removeEventListener("storage", handleAuthChanged);
   document.removeEventListener("pointerdown", handleDocPointer);
   window.removeEventListener("keydown", handleKeydown);
+  if (modalObserver) {
+    modalObserver.disconnect();
+    modalObserver = null;
+  }
+  document.documentElement.classList.remove("modal-open");
 });
 </script>
 
