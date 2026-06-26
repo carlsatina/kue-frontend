@@ -1,5 +1,9 @@
 <template>
-  <div class="pf-wrap">
+  <div class="pf-wrap" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
+    <div class="pull-indicator" :class="{ active: isPulling || refreshing }">
+      <span v-if="!refreshing">↓ Pull to refresh</span>
+      <span v-else>Refreshing…</span>
+    </div>
     <div class="pf-card">
       <div v-if="loading" class="pf-loading">Loading…</div>
       <div v-else-if="error" class="notice">{{ error }}</div>
@@ -168,6 +172,8 @@ const route = useRoute();
 const data = ref(null);
 const loading = ref(true);
 const refreshing = ref(false);
+const startY = ref(0);
+const isPulling = ref(false);
 const error = ref("");
 const selected = ref(null);
 const method = ref("gcash");
@@ -314,6 +320,20 @@ async function refresh() {
   }
 }
 
+// Pull-to-refresh (mobile)
+function onTouchStart(e) {
+  if (window.scrollY === 0) startY.value = e.touches[0].clientY;
+}
+function onTouchMove(e) {
+  if (window.scrollY !== 0) return;
+  if (e.touches[0].clientY - startY.value > 30) isPulling.value = true;
+}
+async function onTouchEnd(e) {
+  const delta = e.changedTouches[0].clientY - startY.value;
+  if (delta > 60) await refresh();
+  isPulling.value = false;
+}
+
 function onRowClick(b) {
   // Open for outstanding or rejected (allow resubmit); block if paid or pending
   if (b.remaining <= 0 || b.pendingPayment) return;
@@ -392,6 +412,23 @@ onUnmounted(() => {
   margin: 0 -16px;
   padding: 20px 16px 48px;
   background: var(--bg, #f5f5f5);
+}
+
+.pull-indicator {
+  text-align: center;
+  font-size: 13px;
+  color: #ffffff;
+  background: #1565c0;
+  padding: 6px;
+  margin: -20px -16px 12px;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.2s, opacity 0.2s, padding 0.2s;
+}
+.pull-indicator.active {
+  max-height: 40px;
+  opacity: 1;
 }
 
 @media (min-width: 880px) {

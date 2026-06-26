@@ -1,5 +1,9 @@
 <template>
-  <div class="players-page">
+  <div class="players-page" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
+    <div class="pull-indicator" :class="{ active: isPulling || refreshing }">
+      <span v-if="!refreshing">↓ Pull to refresh</span>
+      <span v-else>Refreshing…</span>
+    </div>
     <!-- Tab bar -->
     <div class="players-tab-bar">
       <button class="players-tab" :class="{ active: activeTab === 'players' }" type="button" @click="activeTab = 'players'">
@@ -592,6 +596,9 @@ const presentError = ref("");
 const queueShareLink = ref("");
 const queueCopied = ref(false);
 let queueCopyTimer = null;
+const refreshing = ref(false);
+const startY = ref(0);
+const isPulling = ref(false);
 const showJoinLinkModal = ref(false);
 const joinLink = ref("");
 const joinLinkCopied = ref(false);
@@ -1446,6 +1453,29 @@ async function load() {
   sessionPlayers.value = playersResult.status === "fulfilled" ? playersResult.value : [];
   matches.value = matchesResult.status === "fulfilled" ? matchesResult.value : [];
   manualTeams.value = sessionGameType.value === "doubles" ? loadManualTeams(currentSession.id) : [];
+}
+
+// Pull-to-refresh (mobile)
+async function pullRefresh() {
+  if (refreshing.value) return;
+  refreshing.value = true;
+  try {
+    await load();
+  } finally {
+    refreshing.value = false;
+  }
+}
+function onTouchStart(e) {
+  if (window.scrollY === 0) startY.value = e.touches[0].clientY;
+}
+function onTouchMove(e) {
+  if (window.scrollY !== 0) return;
+  if (e.touches[0].clientY - startY.value > 30) isPulling.value = true;
+}
+async function onTouchEnd(e) {
+  const delta = e.changedTouches[0].clientY - startY.value;
+  if (delta > 60) await pullRefresh();
+  isPulling.value = false;
 }
 
 async function addPlayer() {
@@ -2612,6 +2642,27 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* ── Pull-to-refresh ────────────────────────────────────────────── */
+.pull-indicator {
+  text-align: center;
+  font-size: 13px;
+  color: #ffffff;
+  background: var(--accent, #1565c0);
+  padding: 6px;
+  border-radius: 8px;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  /* cancel the parent's flex gap while collapsed */
+  margin-bottom: -16px;
+  transition: max-height 0.2s, opacity 0.2s, padding 0.2s, margin-bottom 0.2s;
+}
+.pull-indicator.active {
+  max-height: 40px;
+  opacity: 1;
+  margin-bottom: 0;
+}
+
 /* ── Page shell ─────────────────────────────────────────────────── */
 .players-page {
   display: flex;

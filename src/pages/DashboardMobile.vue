@@ -1,5 +1,9 @@
 <template>
-  <div>
+  <div @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
+  <div class="pull-indicator" :class="{ active: isPulling || refreshing }">
+    <span v-if="!refreshing">↓ Pull to refresh</span>
+    <span v-else>Refreshing…</span>
+  </div>
   <div class="dm">
 
     <!-- ── Courts ──────────────────────────────────────────────── -->
@@ -182,10 +186,12 @@
 </template>
 
 <script setup>
+import { ref } from "vue";
 import { useDashboard } from "../composables/useDashboard.js";
 import CourtFloor from "../components/CourtFloor.vue";
 
 const {
+  refresh,
   courts, error,
   showAddCourt, newCourtName, newCourtNotes, addCourtError,
   showEditCourt, editCourtName, editCourtNotes, editCourtError,
@@ -202,6 +208,33 @@ const {
   courtStatusLabel, courtDotClass,
 } = useDashboard();
 
+// Pull-to-refresh (mobile)
+const refreshing = ref(false);
+const startY = ref(0);
+const isPulling = ref(false);
+
+async function pullRefresh() {
+  if (refreshing.value) return;
+  refreshing.value = true;
+  try {
+    await refresh();
+  } finally {
+    refreshing.value = false;
+  }
+}
+function onTouchStart(e) {
+  if (window.scrollY === 0) startY.value = e.touches[0].clientY;
+}
+function onTouchMove(e) {
+  if (window.scrollY !== 0) return;
+  if (e.touches[0].clientY - startY.value > 30) isPulling.value = true;
+}
+async function onTouchEnd(e) {
+  const delta = e.changedTouches[0].clientY - startY.value;
+  if (delta > 60) await pullRefresh();
+  isPulling.value = false;
+}
+
 function courtTagClass(court) {
   if (court.status === "maintenance") return "tag-warn";
   if (court.currentMatchId || court.status === "in_match") return "tag-live";
@@ -216,6 +249,25 @@ function courtState(court) {
 </script>
 
 <style scoped>
+/* ── Pull-to-refresh ──────────────────────────────── */
+.pull-indicator {
+  text-align: center;
+  font-size: 13px;
+  color: #ffffff;
+  background: #1565c0;
+  padding: 6px;
+  border-radius: 8px;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.2s, opacity 0.2s, padding 0.2s;
+}
+.pull-indicator.active {
+  max-height: 40px;
+  opacity: 1;
+  margin-bottom: 12px;
+}
+
 /* ── Tokens ───────────────────────────────────────── */
 .dm {
   --blue: #1565c0;
