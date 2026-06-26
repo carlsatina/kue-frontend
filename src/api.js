@@ -70,6 +70,9 @@ export const api = {
     request("/auth/password/forgot", { method: "POST", body: JSON.stringify(payload) }),
   resetPassword: (payload) =>
     request("/auth/password/reset", { method: "POST", body: JSON.stringify(payload) }),
+  me: () => request("/auth/me"),
+  changePassword: (payload) =>
+    request("/auth/password/change", { method: "POST", body: JSON.stringify(payload) }),
   activeSession: (options) => request("/sessions/active", options),
   listSessions: (status) => request(`/sessions${status ? `?status=${status}` : ""}`),
   session: (id, options) => request(`/sessions/${id}`, options),
