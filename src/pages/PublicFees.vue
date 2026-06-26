@@ -56,10 +56,26 @@
 
         <p class="pf-hint">Tap your name below to submit proof of online payment.</p>
 
+        <!-- Search + status filter -->
+        <div class="pf-controls">
+          <input class="input pf-search" v-model="feeSearch" placeholder="Search players" />
+          <div class="pf-filter">
+            <button
+              v-for="opt in statusOptions"
+              :key="opt.value"
+              class="pf-filter-chip"
+              :class="{ active: statusFilter === opt.value }"
+              type="button"
+              @click="statusFilter = opt.value"
+            >{{ opt.label }}</button>
+          </div>
+        </div>
+
         <!-- Player list -->
-        <div class="pf-list">
+        <p v-if="filteredBalances.length === 0" class="pf-empty">No players match.</p>
+        <div v-else class="pf-list">
           <div
-            v-for="b in data.balances"
+            v-for="b in filteredBalances"
             :key="b.playerId"
             class="pf-row"
             :class="[rowClass(b), { 'row-locked': isLocked(b) }]"
@@ -144,7 +160,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { api } from "../api.js";
 
@@ -175,6 +191,33 @@ const waitlistedCount = computed(() =>
 const fullCount = computed(() =>
   (data.value?.balances || []).filter((b) => effectiveState(b) === "full").length
 );
+
+const feeSearch = ref("");
+const statusFilter = ref("all");
+const statusOptions = [
+  { value: "all", label: "All" },
+  { value: "outstanding", label: "Outstanding" },
+  { value: "pending", label: "Pending" },
+  { value: "paid", label: "Paid" },
+  { value: "waitlisted", label: "Waitlisted" }
+];
+
+function matchesFilter(b) {
+  if (statusFilter.value === "all") return true;
+  const s = effectiveState(b);
+  if (statusFilter.value === "outstanding") return s === "outstanding" || s === "rejected";
+  if (statusFilter.value === "waitlisted") return s === "waitlisted" || s === "full";
+  return s === statusFilter.value;
+}
+
+const filteredBalances = computed(() => {
+  const q = feeSearch.value.trim().toLowerCase();
+  return (data.value?.balances || []).filter((b) => {
+    const name = `${b.player.fullName} ${b.player.nickname || ""}`.toLowerCase();
+    if (q && !name.includes(q)) return false;
+    return matchesFilter(b);
+  });
+});
 const pendingCount = computed(() =>
   (data.value?.balances || []).filter((b) => b.pendingPayment).length
 );
@@ -249,11 +292,13 @@ function formatDate(iso) {
   return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-async function load() {
+async function load({ silent = false } = {}) {
   try {
-    data.value = await api.publicFeesSession(route.params.token);
+    const result = await api.publicFeesSession(route.params.token, silent ? { showLoading: false } : undefined);
+    data.value = result;
   } catch (err) {
-    error.value = err.message || "Unable to load";
+    // Keep the last good data on a silent background refresh.
+    if (!silent) error.value = err.message || "Unable to load";
   } finally {
     loading.value = false;
   }
@@ -323,7 +368,22 @@ async function submitProof() {
   }
 }
 
-onMounted(load);
+let pollTimerId = null;
+const POLL_INTERVAL_MS = 15000; // silently re-fetch fees every 15s
+
+onMounted(() => {
+  load();
+  pollTimerId = setInterval(() => {
+    // Don't refresh under the player while they're submitting in the modal.
+    if (!refreshing.value && !submitting.value && !selected.value) {
+      load({ silent: true });
+    }
+  }, POLL_INTERVAL_MS);
+});
+
+onUnmounted(() => {
+  if (pollTimerId) clearInterval(pollTimerId);
+});
 </script>
 
 <style scoped>
@@ -496,6 +556,40 @@ onMounted(load);
 .pf-hint {
   font-size: 13px;
   color: var(--ink-soft);
+  margin: 0;
+}
+
+.pf-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pf-search { width: 100%; }
+.pf-filter {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.pf-filter-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border, #e0e0e0);
+  background: #fff;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.pf-filter-chip.active {
+  background: #1565c0;
+  border-color: #1565c0;
+  color: #fff;
+}
+.pf-empty {
+  font-size: 14px;
+  color: var(--ink-soft);
+  padding: 16px 4px;
   margin: 0;
 }
 

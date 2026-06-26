@@ -57,9 +57,9 @@ export const api = {
     request("/auth/password/forgot", { method: "POST", body: JSON.stringify(payload) }),
   resetPassword: (payload) =>
     request("/auth/password/reset", { method: "POST", body: JSON.stringify(payload) }),
-  activeSession: () => request("/sessions/active"),
+  activeSession: (options) => request("/sessions/active", options),
   listSessions: (status) => request(`/sessions${status ? `?status=${status}` : ""}`),
-  session: (id) => request(`/sessions/${id}`),
+  session: (id, options) => request(`/sessions/${id}`, options),
   sessionPlayers: (sessionId) => request(`/sessions/${sessionId}/players`),
   rankings: (sessionId) => request(`/sessions/${sessionId}/rankings`),
   bracketOverrides: (sessionId, params = {}) => {
@@ -115,7 +115,7 @@ export const api = {
     const query = new URLSearchParams(params).toString();
     return request(`/sessions/${sessionId}/team-stats${query ? `?${query}` : ""}`);
   },
-  balances: (sessionId) => request(`/payments/${sessionId}/balances`),
+  balances: (sessionId, options) => request(`/payments/${sessionId}/balances`, options),
   confirmPayment: (sessionId, paymentId) =>
     request(`/payments/${sessionId}/${paymentId}/confirm`, { method: "PATCH" }),
   rejectPayment: (sessionId, paymentId) =>
@@ -140,7 +140,7 @@ export const api = {
   revokeShareLink: (id) => request(`/share-links/${id}/revoke`, { method: "POST" }),
   createSessionShareLink: (sessionId) => request(`/share-links/session/${sessionId}`, { method: "POST" }),
   createSessionInviteLink: (sessionId) => request(`/share-links/session-invite/${sessionId}`, { method: "POST" }),
-  publicFeesSession: (token) => publicRequest(`/public/fees-session/${token}`),
+  publicFeesSession: (token, options) => publicRequest(`/public/fees-session/${token}`, options),
   publicSubmitProof: (token, playerId, method, proofFile) => {
     const form = new FormData();
     form.append("playerId", playerId);

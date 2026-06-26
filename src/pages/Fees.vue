@@ -3,10 +3,23 @@
   <div class="fees-page">
     <!-- Page header -->
     <div class="fees-header">
-      <div>
-        <h1 class="fees-title">Fees</h1>
-        <p class="text-muted" v-if="session">{{ session.name }}</p>
-        <p class="text-muted" v-else>Open a session to manage fees.</p>
+      <div class="fees-header-top">
+        <div>
+          <h1 class="fees-title">Fees</h1>
+          <p class="text-muted" v-if="session">{{ session.name }}</p>
+          <p class="text-muted" v-else>Open a session to manage fees.</p>
+        </div>
+        <button
+          v-if="session"
+          class="button ghost button-compact fees-refresh-btn"
+          type="button"
+          :class="{ spinning: refreshing }"
+          :disabled="refreshing"
+          aria-label="Refresh"
+          @click="refresh"
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+        </button>
       </div>
       <div v-if="session" class="fees-header-right">
         <div class="fees-summary-chips">
@@ -39,10 +52,27 @@
       No players with fees yet.
     </div>
 
-    <!-- Balance list -->
-    <div v-else class="balance-list">
+    <template v-else-if="session">
+      <!-- Search + status filter -->
+      <div class="fees-controls">
+        <input class="input fees-search" v-model="feeSearch" placeholder="Search players" />
+        <div class="fees-filter">
+          <button
+            v-for="opt in statusOptions"
+            :key="opt.value"
+            class="filter-chip"
+            :class="{ active: statusFilter === opt.value }"
+            type="button"
+            @click="statusFilter = opt.value"
+          >{{ opt.label }}</button>
+        </div>
+      </div>
+
+      <!-- Balance list -->
+      <div v-if="filteredBalances.length === 0" class="empty-state">No players match.</div>
+      <div v-else class="balance-list">
       <div
-        v-for="b in balances"
+        v-for="b in filteredBalances"
         :key="b.playerId"
         class="balance-row"
         :class="{ 'is-paid': b.remaining <= 0 }"
@@ -88,7 +118,8 @@
           </button>
         </div>
       </div>
-    </div>
+      </div>
+    </template>
   </div>
 
   <!-- Edit fee modal -->
@@ -194,7 +225,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { api } from "../api.js";
 import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.js";
 
@@ -225,6 +256,7 @@ const isPinching = ref(false);
 let pinchStartDist = 0;
 let pinchStartScale = 1;
 const linkCopied = ref(false);
+const refreshing = ref(false);
 
 // Pending modal
 const showPendingModal = ref(false);
@@ -242,6 +274,31 @@ const pendingCount = computed(() =>
   balances.value.filter((b) => b.pendingPayment).length
 );
 
+const feeSearch = ref("");
+const statusFilter = ref("all");
+const statusOptions = [
+  { value: "all", label: "All" },
+  { value: "outstanding", label: "Outstanding" },
+  { value: "pending", label: "Pending" },
+  { value: "paid", label: "Paid" }
+];
+
+function balanceStatus(b) {
+  if (b.pendingPayment) return "pending";
+  if (b.remaining <= 0) return "paid";
+  return "outstanding"; // includes rejected proofs that still owe
+}
+
+const filteredBalances = computed(() => {
+  const q = feeSearch.value.trim().toLowerCase();
+  return balances.value.filter((b) => {
+    const name = `${b.player.fullName} ${b.player.nickname || ""}`.toLowerCase();
+    if (q && !name.includes(q)) return false;
+    if (statusFilter.value !== "all" && balanceStatus(b) !== statusFilter.value) return false;
+    return true;
+  });
+});
+
 function absoluteUrl(url) {
   return url.startsWith("http") ? url : `${BASE_URL}${url}`;
 }
@@ -251,13 +308,14 @@ function formatDate(iso) {
   return new Date(iso).toLocaleString();
 }
 
-async function load() {
+async function load({ silent = false } = {}) {
+  const reqOptions = silent ? { showLoading: false } : undefined;
   try {
     let currentSession = null;
     if (selectedSessionId.value) {
-      currentSession = await api.session(selectedSessionId.value);
+      currentSession = await api.session(selectedSessionId.value, reqOptions);
     } else {
-      currentSession = await api.activeSession();
+      currentSession = await api.activeSession(reqOptions);
       if (currentSession?.id) setSelectedSessionId(currentSession.id);
     }
     if (!currentSession) {
@@ -266,13 +324,32 @@ async function load() {
       return;
     }
     session.value = currentSession;
-    const data = await api.balances(session.value.id);
+    const data = await api.balances(session.value.id, reqOptions);
     balances.value = data.balances || [];
   } catch (err) {
-    error.value = err.message || "No active session";
-    balances.value = [];
+    // Keep the last good data on a silent background refresh.
+    if (!silent) {
+      error.value = err.message || "No active session";
+      balances.value = [];
+    }
   }
 }
+
+async function refresh() {
+  if (refreshing.value) return;
+  refreshing.value = true;
+  try {
+    await load();
+  } finally {
+    refreshing.value = false;
+  }
+}
+
+// True while any modal/action is open — pause auto-refresh so data doesn't
+// shift under the admin mid-task.
+const actionInProgress = computed(
+  () => showPayment.value || showEditFee.value || showPendingModal.value || Boolean(proofLightbox.value)
+);
 
 // ── Share session fee link ───────────────────────────────────────────────────
 
@@ -462,8 +539,24 @@ function formatAmount(value) {
   return value.toLocaleString();
 }
 
-onMounted(load);
-watch(selectedSessionId, load);
+watch(selectedSessionId, () => load());
+
+let pollTimerId = null;
+const POLL_INTERVAL_MS = 15000; // silently re-fetch balances every 15s
+
+onMounted(() => {
+  load();
+  pollTimerId = setInterval(() => {
+    // Skip while the admin is mid-action so data doesn't shift under them.
+    if (!refreshing.value && !actionInProgress.value) {
+      load({ silent: true });
+    }
+  }, POLL_INTERVAL_MS);
+});
+
+onUnmounted(() => {
+  if (pollTimerId) clearInterval(pollTimerId);
+});
 </script>
 
 <style scoped>
@@ -477,10 +570,15 @@ watch(selectedSessionId, load);
 /* ── Header ──────────────────────────────────────────────────────── */
 .fees-header {
   display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fees-header-top {
+  display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  flex-wrap: wrap;
 }
 
 .fees-title {
@@ -565,6 +663,19 @@ watch(selectedSessionId, load);
   border-color: rgba(0, 137, 123, 0.3);
 }
 
+.fees-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+}
+.fees-refresh-btn.spinning svg {
+  animation: fees-spin 0.7s linear infinite;
+}
+@keyframes fees-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ── Empty state ─────────────────────────────────────────────────── */
 .empty-state {
   font-size: 15px;
@@ -573,6 +684,37 @@ watch(selectedSessionId, load);
 }
 
 /* ── Balance list ────────────────────────────────────────────────── */
+.fees-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.fees-search {
+  width: 100%;
+}
+.fees-filter {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.filter-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.filter-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 .balance-list {
   display: grid;
   grid-template-columns: 1fr;
