@@ -6,12 +6,51 @@
       <template v-else>
         <!-- Header -->
         <div class="pf-header">
+          <button
+            class="pf-refresh-btn"
+            type="button"
+            :class="{ spinning: refreshing }"
+            :disabled="refreshing"
+            aria-label="Refresh"
+            @click="refresh"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+          </button>
           <div class="pf-session">{{ data.session.name }}</div>
           <h2 class="pf-title">Session Fees</h2>
           <div class="pf-chips">
-            <span class="pf-chip outstanding" v-if="totalRemaining > 0">{{ outstandingCount }} outstanding</span>
+            <span class="pf-chip outstanding" v-if="outstandingCount > 0">{{ outstandingCount }} outstanding</span>
+            <span class="pf-chip waitlisted" v-if="waitlistedCount > 0">{{ waitlistedCount }} waitlisted</span>
+            <span class="pf-chip full" v-if="fullCount > 0">{{ fullCount }} session full</span>
             <span class="pf-chip pending" v-if="pendingCount > 0">{{ pendingCount }} pending review</span>
             <span class="pf-chip paid" v-if="paidCount > 0">{{ paidCount }} paid</span>
+          </div>
+        </div>
+
+        <!-- Payment-required notice -->
+        <div
+          v-if="data.session.requirePaymentToJoin"
+          class="pf-gate-banner"
+          :class="{ passed: data.session.deadlinePassed }"
+        >
+          <span class="pf-gate-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 5a1 1 0 0 1 1 1v5a1 1 0 0 1-2 0V8a1 1 0 0 1 1-1zm0 9.25a1.15 1.15 0 1 1 0 2.3 1.15 1.15 0 0 1 0-2.3z"/></svg>
+          </span>
+          <div class="pf-gate-text">
+            <template v-if="data.session.deadlinePassed">
+              <strong>The payment deadline has passed.</strong>
+              <span>Unpaid slots have been released to the waitlist. You can still submit payment, but a spot is only confirmed if one is open.</span>
+              <span v-if="data.session.paymentDeadline" class="pf-gate-deadline">
+                Deadline was {{ formatDate(data.session.paymentDeadline) }}.
+              </span>
+            </template>
+            <template v-else>
+              <strong>Payment is required to join this session.</strong>
+              <span>Your slot is confirmed only after your payment is approved.</span>
+              <span v-if="data.session.paymentDeadline" class="pf-gate-deadline">
+                Pay before {{ formatDate(data.session.paymentDeadline) }}.
+              </span>
+            </template>
           </div>
         </div>
 
@@ -23,18 +62,13 @@
             v-for="b in data.balances"
             :key="b.playerId"
             class="pf-row"
-            :class="rowClass(b)"
+            :class="[rowClass(b), { 'row-locked': isLocked(b) }]"
             @click="onRowClick(b)"
           >
             <div class="pf-row-main">
               <div class="pf-player-info">
                 <span class="pf-player-name">{{ b.player.nickname || b.player.fullName }}</span>
-                <span class="pf-player-due" v-if="b.remaining > 0 && !b.pendingPayment && !b.rejectedPayment">
-                  Outstanding: {{ b.remaining }}
-                </span>
-                <span class="pf-player-due" v-else-if="b.pendingPayment">
-                  Submitted {{ formatDate(b.pendingPayment.createdAt) }}
-                </span>
+                <span class="pf-player-due" v-if="dueLabel(b)">{{ dueLabel(b) }}</span>
               </div>
               <div class="pf-status-badge" :class="badgeClass(b)">
                 {{ badgeLabel(b) }}
@@ -117,6 +151,7 @@ import { api } from "../api.js";
 const route = useRoute();
 const data = ref(null);
 const loading = ref(true);
+const refreshing = ref(false);
 const error = ref("");
 const selected = ref(null);
 const method = ref("gcash");
@@ -132,7 +167,13 @@ const totalRemaining = computed(() =>
   (data.value?.balances || []).reduce((s, b) => s + b.remaining, 0)
 );
 const outstandingCount = computed(() =>
-  (data.value?.balances || []).filter((b) => b.remaining > 0 && !b.pendingPayment).length
+  (data.value?.balances || []).filter((b) => effectiveState(b) === "outstanding").length
+);
+const waitlistedCount = computed(() =>
+  (data.value?.balances || []).filter((b) => effectiveState(b) === "waitlisted").length
+);
+const fullCount = computed(() =>
+  (data.value?.balances || []).filter((b) => effectiveState(b) === "full").length
 );
 const pendingCount = computed(() =>
   (data.value?.balances || []).filter((b) => b.pendingPayment).length
@@ -140,26 +181,68 @@ const pendingCount = computed(() =>
 const paidCount = computed(() =>
   (data.value?.balances || []).filter((b) => b.remaining <= 0).length
 );
+const hasOpenSlot = computed(() => Boolean(data.value?.session?.hasOpenSlot));
+
+// A waitlisted player can't pay until a slot frees up — their row is locked.
+function isLocked(b) {
+  return b.waitlisted && !b.pendingPayment && b.remaining > 0 && !hasOpenSlot.value;
+}
+
+const deadlinePassed = computed(() => Boolean(data.value?.session?.deadlinePassed));
+
+// Resolve the display state for a player's balance.
+// Once the deadline passes, the reserved-slot/waitlist distinction collapses:
+// every unpaid player is simply "outstanding" and may pay first-come until the
+// seat limit fills, after which the rest read "full".
+function effectiveState(b) {
+  if (b.remaining <= 0) return "paid";
+  if (b.pendingPayment) return "pending";
+  if (b.rejectedPayment) return "rejected";
+  if (b.waitlisted) {
+    // If a seat is actually open, they can pay now — treat as outstanding.
+    if (hasOpenSlot.value) return "outstanding";
+    // No seat: "full" once the deadline has passed, otherwise still waitlisted.
+    return deadlinePassed.value ? "full" : "waitlisted";
+  }
+  return "outstanding";
+}
 
 function rowClass(b) {
-  if (b.remaining <= 0) return "row-paid";
-  if (b.pendingPayment) return "row-pending";
-  if (b.rejectedPayment) return "row-rejected";
+  const s = effectiveState(b);
+  if (s === "paid") return "row-paid";
+  if (s === "pending") return "row-pending";
+  if (s === "rejected") return "row-rejected";
+  if (s === "waitlisted" || s === "full") return "row-waitlisted";
   return "row-outstanding";
 }
 
 function badgeClass(b) {
-  if (b.remaining <= 0) return "badge-paid";
-  if (b.pendingPayment) return "badge-pending";
-  if (b.rejectedPayment) return "badge-rejected";
+  const s = effectiveState(b);
+  if (s === "paid") return "badge-paid";
+  if (s === "pending") return "badge-pending";
+  if (s === "rejected") return "badge-rejected";
+  if (s === "waitlisted") return "badge-pending";
+  if (s === "full") return "badge-full";
   return "badge-outstanding";
 }
 
 function badgeLabel(b) {
-  if (b.remaining <= 0) return "Paid";
-  if (b.pendingPayment) return "Pending";
-  if (b.rejectedPayment) return "Rejected";
+  const s = effectiveState(b);
+  if (s === "paid") return "Paid";
+  if (s === "pending") return "Pending";
+  if (s === "rejected") return "Rejected";
+  if (s === "waitlisted") return "Waitlisted";
+  if (s === "full") return "Session Full";
   return "Outstanding";
+}
+
+function dueLabel(b) {
+  const s = effectiveState(b);
+  if (s === "pending") return `Submitted ${formatDate(b.pendingPayment.createdAt)}`;
+  if (s === "outstanding") return `Outstanding: ${b.remaining}`;
+  if (s === "full") return "Session is full — no open slot";
+  if (s === "waitlisted") return "Waitlisted — waiting for an open slot";
+  return "";
 }
 
 function formatDate(iso) {
@@ -176,9 +259,21 @@ async function load() {
   }
 }
 
+async function refresh() {
+  if (refreshing.value) return;
+  refreshing.value = true;
+  try {
+    await load();
+  } finally {
+    refreshing.value = false;
+  }
+}
+
 function onRowClick(b) {
   // Open for outstanding or rejected (allow resubmit); block if paid or pending
   if (b.remaining <= 0 || b.pendingPayment) return;
+  // Waitlisted players can only pay once a slot opens up.
+  if (isLocked(b)) return;
   selected.value = b;
   method.value = "gcash";
   proofFile.value = null;
@@ -256,7 +351,30 @@ onMounted(load);
 .pf-loading { color: var(--ink-soft); font-size: 16px; }
 
 /* Header */
-.pf-header { display: flex; flex-direction: column; gap: 6px; }
+.pf-header { position: relative; display: flex; flex-direction: column; gap: 6px; padding-right: 44px; }
+
+.pf-refresh-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border, #e0e0e0);
+  background: #fff;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.pf-refresh-btn:hover { background: #f1f5f9; color: var(--ink); }
+.pf-refresh-btn:disabled { cursor: default; }
+.pf-refresh-btn svg { width: 18px; height: 18px; }
+.pf-refresh-btn.spinning svg { animation: pf-spin 0.7s linear infinite; }
+@keyframes pf-spin { to { transform: rotate(360deg); } }
 
 .pf-session { font-size: 14px; color: var(--ink-soft); }
 
@@ -277,8 +395,10 @@ onMounted(load);
 }
 
 .pf-chip.outstanding { background: rgba(180, 95, 95, 0.1); color: #b45f5f; }
+.pf-chip.waitlisted  { background: rgba(148, 163, 184, 0.18); color: #475569; }
 .pf-chip.pending     { background: rgba(245, 158, 11, 0.12); color: #92400e; }
 .pf-chip.paid        { background: rgba(0, 137, 123, 0.1); color: #00897b; }
+.pf-chip.full        { background: rgba(148, 163, 184, 0.18); color: #475569; }
 
 /* Player list */
 .pf-list {
@@ -332,10 +452,16 @@ onMounted(load);
 }
 
 .pf-row.row-outstanding,
-.pf-row.row-rejected { cursor: pointer; }
+.pf-row.row-rejected,
+.pf-row.row-waitlisted { cursor: pointer; }
 .pf-row.row-outstanding:active { background: rgba(21,101,192,0.04); }
 .pf-row.row-rejected:active  { background: rgba(180,95,95,0.04); }
+.pf-row.row-waitlisted:active { background: rgba(245,158,11,0.05); }
 .pf-row.row-paid { background: #f8fffe; }
+
+/* Waitlisted with no open slot — not actionable */
+.pf-row.row-locked { cursor: not-allowed; opacity: 0.6; }
+.pf-row.row-locked:active { background: transparent; }
 
 .pf-rejected-notice {
   font-size: 13px;
@@ -364,12 +490,64 @@ onMounted(load);
 .badge-pending     { background: rgba(245, 158, 11, 0.12); color: #92400e; }
 .badge-rejected    { background: rgba(180, 95, 95, 0.12);  color: #b45f5f; }
 .badge-paid        { background: rgba(0, 137, 123, 0.12);  color: #00897b; }
+.badge-full        { background: rgba(148, 163, 184, 0.2); color: #475569; }
 
 /* Hint */
 .pf-hint {
   font-size: 13px;
   color: var(--ink-soft);
   margin: 0;
+}
+
+/* Payment-required banner */
+.pf-gate-banner {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  margin: 4px 0 12px;
+}
+.pf-gate-icon {
+  flex-shrink: 0;
+  color: #b45309;
+  line-height: 0;
+}
+.pf-gate-icon svg {
+  width: 20px;
+  height: 20px;
+}
+.pf-gate-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #92400e;
+}
+.pf-gate-text strong {
+  font-size: 13.5px;
+  color: #7c2d12;
+}
+.pf-gate-deadline {
+  font-weight: 600;
+}
+
+/* Deadline-passed (red) variant */
+.pf-gate-banner.passed {
+  background: rgba(185, 28, 28, 0.1);
+  border-color: rgba(185, 28, 28, 0.35);
+}
+.pf-gate-banner.passed .pf-gate-icon {
+  color: #b91c1c;
+}
+.pf-gate-banner.passed .pf-gate-text {
+  color: #991b1b;
+}
+.pf-gate-banner.passed .pf-gate-text strong {
+  color: #7f1d1d;
 }
 
 /* Modal */

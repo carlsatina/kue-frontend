@@ -2,33 +2,15 @@
   <div>
   <div class="dm">
 
-    <!-- ── Session Card ───────────────────────────────────────── -->
-    <div class="session-card" :class="session?.status === 'open' ? 'sc-open' : 'sc-closed'">
-      <div class="sc-top">
-        <div class="sc-info">
-          <div class="sc-eyebrow">Active Session</div>
-          <div class="sc-name">{{ session?.name || "No session" }}</div>
-        </div>
-        <span class="sc-badge" :class="session?.status === 'open' ? 'scb-open' : 'scb-off'">
-          {{ session?.status || "none" }}
-        </span>
-      </div>
-      <div class="sc-actions">
-        <button class="sc-btn sc-btn-solid" @click="openCreateSession">+ New</button>
-        <button v-if="session" class="sc-btn sc-btn-ghost" @click="openEditSession">Edit</button>
-        <button v-if="session && session.status !== 'open'" class="sc-btn sc-btn-green" @click="openSession">Open</button>
-        <button v-if="session && session.status === 'open'" class="sc-btn sc-btn-ghost" @click="closeSession">Close</button>
-      </div>
-    </div>
-
     <!-- ── Courts ──────────────────────────────────────────────── -->
     <div class="section">
       <div class="section-row">
         <span class="section-title">Courts</span>
         <div class="section-row-actions">
-          <button class="pill-btn" @click="createInviteLink">
-            <svg viewBox="0 0 24 24" width="13" height="13"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-            Share Link
+          <button class="pill-btn" :class="{ 'pill-btn-copied': inviteCopied }" @click="createInviteLink">
+            <svg v-if="inviteCopied" viewBox="0 0 24 24" width="13" height="13"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg v-else viewBox="0 0 24 24" width="13" height="13"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            {{ inviteCopied ? "Link Copied!" : "Share Link" }}
           </button>
           <button class="pill-btn pill-btn-accent" @click="showAddCourt = true">+ Add</button>
         </div>
@@ -39,55 +21,43 @@
           v-for="court in courts"
           :key="court.id"
           class="court-card"
-          :class="{
-            'cc-active': court.currentMatchId,
-            'cc-maintenance': court.status === 'maintenance'
-          }"
+          :class="{ live: court.currentMatchId, maintenance: court.status === 'maintenance' }"
         >
-          <!-- Court header -->
-          <div class="cc-head">
+          <!-- Top bar -->
+          <div class="cc-bar">
             <div class="cc-id">
               <span class="cc-dot" :class="courtDotClass(court)"></span>
               <span class="cc-name">{{ court.court?.name || court.name }}</span>
             </div>
-            <div class="cc-head-right">
-              <span class="cc-status-tag" :class="courtTagClass(court)">
+            <div class="cc-controls">
+              <span class="cc-status" :class="courtTagClass(court)">
                 {{ courtStatusLabel(court.status) }}
               </span>
-              <button class="ic-btn" @click="openEditCourt(court)" aria-label="Edit">
+              <button class="ic-btn" @click="openEditCourt(court)" aria-label="Edit court">
                 <svg viewBox="0 0 24 24"><path d="M4 15.5V20h4.5L19 9.5 14.5 5 4 15.5z"/></svg>
               </button>
-              <button class="ic-btn ic-danger" @click="deleteCourt(court)" aria-label="Delete">
+              <button class="ic-btn ic-danger" @click="deleteCourt(court)" aria-label="Delete court">
                 <svg viewBox="0 0 24 24"><path d="M6 7h12l-1 13a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7zm3-3h6l1 2H8l1-2z"/></svg>
               </button>
             </div>
           </div>
 
-          <!-- Match info -->
-          <div v-if="court.currentMatch" class="cc-match">
-            <div class="cc-teams">
-              <span class="cc-team cc-team-a">{{ teamNames(court.currentMatch, 1) || "—" }}</span>
-              <span class="cc-vs">vs</span>
-              <span class="cc-team cc-team-b">{{ teamNames(court.currentMatch, 2) || "—" }}</span>
-            </div>
-            <div class="cc-time">
-              <span class="cc-time-start">{{ formatTime(court.currentMatch?.startedAt) }}</span>
-              <span class="cc-divider">·</span>
-              <span class="cc-elapsed">{{ elapsedTime(court.currentMatch?.startedAt) }}</span>
-            </div>
-          </div>
-          <div v-else class="cc-idle">No match in progress</div>
+          <!-- The court -->
+          <CourtFloor
+            :name="court.court?.name || court.name"
+            :state="courtState(court)"
+            :team-a="teamNames(court.currentMatch, 1)"
+            :team-b="teamNames(court.currentMatch, 2)"
+            :empty-text="court.status === 'maintenance' ? 'Under maintenance' : 'Open court — no match yet'"
+          />
 
-          <!-- Actions -->
-          <div class="cc-footer">
-            <button
-              v-if="court.status === 'available'"
-              class="cc-action-btn cc-action-outline"
-              @click="goToPlayers"
-            >
-              Add Players
-            </button>
-            <template v-else>
+          <!-- Actions (only for occupied / maintenance courts) -->
+          <div v-if="court.status !== 'available'" class="cc-footer">
+            <span v-if="court.currentMatch" class="cc-timer">
+              <svg class="cc-timer-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 9.5V13l2.5 2M9 2.5h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              {{ elapsedTime(court.currentMatch?.startedAt) }}
+            </span>
+            <div class="cc-actions">
               <button
                 class="cc-action-btn cc-action-danger"
                 @click="cancelMatch(court)"
@@ -102,7 +72,7 @@
               >
                 Complete
               </button>
-            </template>
+            </div>
           </div>
         </div>
       </div>
@@ -112,36 +82,6 @@
         <div class="empty-text">No courts yet. Add one to get started.</div>
       </div>
       <div v-if="error" class="error-bar">{{ error }}</div>
-    </div>
-
-    <!-- ── Past Sessions ───────────────────────────────────────── -->
-    <div class="section section-last">
-      <button class="section-row collapse-btn" @click="togglePastSessions" type="button">
-        <span class="section-title">Past Sessions</span>
-        <span class="collapse-meta">
-          <span class="collapse-count">{{ pastSessions.length }}</span>
-          <span class="chevron" :class="{ open: showPastSessions }">
-            <svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </span>
-        </span>
-      </button>
-
-      <div v-if="showPastSessions" class="past-list">
-        <div v-if="pastSessions.length === 0" class="empty-state" style="padding: 16px 0">
-          <div class="empty-text">No closed sessions yet.</div>
-        </div>
-        <div v-for="s in pastSessions" :key="s.id" class="past-item">
-          <div class="past-info">
-            <div class="past-name">{{ s.name }}</div>
-            <div class="past-meta">{{ formatDateTime(s.closedAt) }}</div>
-          </div>
-          <div class="past-actions">
-            <button class="pill-btn" @click="viewRoster(s)">Roster</button>
-            <button class="pill-btn pill-btn-accent" @click="reopenSession(s)">Reopen</button>
-            <button class="pill-btn pill-btn-danger" @click="openDeleteSession(s)">Delete</button>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -218,21 +158,6 @@
       </div>
     </div>
   </div>
-  <div v-if="showEditFee" class="modal-backdrop">
-    <div class="modal-card">
-      <h3>Edit Session Fee</h3>
-      <div class="subtitle">{{ session?.name }}</div>
-      <div class="field">
-        <label class="field-label">Fee amount</label>
-        <input class="input" v-model.number="editFeeAmount" type="number" min="0" />
-      </div>
-      <div v-if="editFeeError" class="notice">{{ editFeeError }}</div>
-      <div class="grid two">
-        <button class="button" @click="saveEditFee">Save</button>
-        <button class="button ghost" @click="closeEditFee">Cancel</button>
-      </div>
-    </div>
-  </div>
   <div v-if="showInviteLink" class="modal-backdrop">
     <div class="modal-card">
       <h3>Session Share Link</h3>
@@ -253,158 +178,40 @@
       <button class="button" @click="closeInviteWarning">OK</button>
     </div>
   </div>
-  <div v-if="showRoster" class="modal-backdrop">
-    <div class="modal-card">
-      <h3>Session Roster</h3>
-      <div class="subtitle">{{ rosterSession?.name }}</div>
-      <div v-if="rosterPlayers.length === 0" class="subtitle">No players recorded.</div>
-      <div v-else class="roster-list">
-        <div v-for="sp in rosterPlayers" :key="sp.id" class="roster-item">
-          <div class="roster-name">{{ sp.player.nickname || sp.player.fullName }}</div>
-          <span class="badge neutral">{{ sp.status }}</span>
-          <div class="roster-meta">GP {{ sp.gamesPlayed }}</div>
-        </div>
-      </div>
-      <button class="button ghost" @click="closeRoster">Close</button>
-    </div>
-  </div>
-  <div v-if="showDeleteSession" class="modal-backdrop">
-    <div class="modal-card">
-      <h3>Delete Session</h3>
-      <div class="subtitle">Permanently delete <strong>{{ deleteSessionTarget?.name }}</strong> and its data?</div>
-      <div v-if="deleteSessionError" class="notice">{{ deleteSessionError }}</div>
-      <div class="grid two">
-        <button class="button ghost" @click="closeDeleteSession">Cancel</button>
-        <button class="button danger button-compact" @click="confirmDeleteSession">Delete</button>
-      </div>
-    </div>
-  </div>
-  <div v-if="showCreateSession" class="modal-backdrop">
-    <div class="modal-card session-create">
-      <h3>Create Session</h3>
-      <div class="field">
-        <label class="field-label">Session name</label>
-        <input class="input" v-model="newSessionName" />
-      </div>
-      <div class="field">
-        <label class="field-label">Game type</label>
-        <select class="input" v-model="newGameType">
-          <option value="doubles">Doubles</option>
-          <option value="singles">Singles</option>
-        </select>
-      </div>
-      <div class="field">
-        <label class="field-label">Session mode</label>
-        <select class="input" v-model="newSessionMode">
-          <option value="usual">Usual</option>
-          <option value="tournament">Tournament</option>
-        </select>
-      </div>
-      <div class="field">
-        <label class="field-label">Fee amount</label>
-        <input class="input" v-model.number="feeAmount" type="number" min="0" />
-      </div>
-      <div class="join-limits-row">
-        <div class="field field-inline">
-          <label class="field-label">Regular</label>
-          <input class="input" type="number" min="0" v-model.number="regularJoinLimit" />
-        </div>
-        <div class="field field-inline">
-          <label class="field-label">New joiner</label>
-          <input class="input" type="number" min="0" v-model.number="newJoinerLimit" />
-        </div>
-      </div>
-      <div v-if="createError" class="notice">{{ createError }}</div>
-      <div class="grid two">
-        <button class="button ghost" @click="closeCreateSession">Cancel</button>
-        <button class="button" @click="createSession">Create Session</button>
-      </div>
-    </div>
-  </div>
-  <div v-if="showEditSession" class="modal-backdrop">
-    <div class="modal-card session-create">
-      <h3>Edit Session</h3>
-      <div class="field">
-        <label class="field-label">Session name</label>
-        <input class="input" v-model="editSessionName" />
-      </div>
-      <div class="field">
-        <label class="field-label">Game type</label>
-        <select class="input" v-model="editGameType">
-          <option value="doubles">Doubles</option>
-          <option value="singles">Singles</option>
-        </select>
-      </div>
-      <div class="field">
-        <label class="field-label">Session mode</label>
-        <select class="input" v-model="editSessionMode">
-          <option value="usual">Usual</option>
-          <option value="tournament">Tournament</option>
-        </select>
-      </div>
-      <div class="field">
-        <label class="field-label">Fee amount</label>
-        <input class="input" v-model.number="editSessionFeeAmount" type="number" min="0" />
-      </div>
-      <div class="join-limits-row">
-        <div class="field field-inline">
-          <label class="field-label">Regular</label>
-          <input class="input" type="number" min="0" v-model.number="editRegularJoinLimit" />
-        </div>
-        <div class="field field-inline">
-          <label class="field-label">New joiner</label>
-          <input class="input" type="number" min="0" v-model.number="editNewJoinerLimit" />
-        </div>
-      </div>
-      <div v-if="editSessionError" class="notice">{{ editSessionError }}</div>
-      <div class="grid two">
-        <button class="button ghost" @click="closeEditSession">Cancel</button>
-        <button class="button" @click="saveEditSession">Save</button>
-      </div>
-    </div>
-  </div>
   </div>
 </template>
 
 <script setup>
 import { useDashboard } from "../composables/useDashboard.js";
+import CourtFloor from "../components/CourtFloor.vue";
 
 const {
-  session, courts, error,
-  newSessionName, newGameType, newSessionMode, feeAmount, regularJoinLimit, newJoinerLimit,
-  showCreateSession, createError,
-  showEditSession, editSessionName, editGameType, editSessionMode,
-  editSessionFeeAmount, editRegularJoinLimit, editNewJoinerLimit, editSessionError,
+  courts, error,
   showAddCourt, newCourtName, newCourtNotes, addCourtError,
   showEditCourt, editCourtName, editCourtNotes, editCourtError,
   showDeleteCourt, deleteCourtName, deleteCourtError,
   showEndMatch, endMatchError, endMatchTeams, endMatchScoreA, endMatchScoreB,
   showInviteLink, inviteLink, inviteCopied, showInviteWarning,
-  pastSessions, showPastSessions, showRoster, rosterPlayers, rosterSession,
-  showEditFee, editFeeAmount, editFeeError,
-  showDeleteSession, deleteSessionTarget, deleteSessionError,
-  openCreateSession, closeCreateSession, createSession,
-  openEditSession, closeEditSession, saveEditSession,
-  openSession, closeSession,
-  openDeleteSession, closeDeleteSession, confirmDeleteSession,
-  reopenSession,
-  saveEditFee, closeEditFee,
   createCourt, closeAddCourt,
   openEditCourt, updateCourt, closeEditCourt,
   deleteCourt, confirmDeleteCourt, closeDeleteCourt,
   openEndMatch, closeEndMatch, finishMatch,
   cancelMatch,
   createInviteLink, copyInviteLink, closeInviteLink, closeInviteWarning,
-  viewRoster, closeRoster,
-  togglePastSessions, goToPlayers,
-  teamNames, formatTime, elapsedTime,
-  courtStatusLabel, courtDotClass, formatDateTime,
+  teamNames, elapsedTime,
+  courtStatusLabel, courtDotClass,
 } = useDashboard();
 
 function courtTagClass(court) {
   if (court.status === "maintenance") return "tag-warn";
   if (court.currentMatchId || court.status === "in_match") return "tag-live";
   return "tag-idle";
+}
+
+function courtState(court) {
+  if (court.currentMatch) return "live";
+  if (court.status === "maintenance") return "maintenance";
+  return "idle";
 }
 </script>
 
@@ -429,92 +236,12 @@ function courtTagClass(court) {
   gap: 20px;
 }
 
-/* ── Session card ─────────────────────────────────── */
-.session-card {
-  border-radius: var(--r);
-  padding: 20px;
-  background: linear-gradient(135deg, #1a237e 0%, #1565c0 45%, #00695c 100%);
-  color: white;
-  box-shadow: 0 8px 32px rgba(21, 101, 192, 0.3), 0 2px 8px rgba(21, 101, 192, 0.2);
-}
-
-.session-card.sc-closed {
-  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.18);
-}
-
-.sc-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.sc-eyebrow {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  opacity: 0.65;
-  margin-bottom: 5px;
-}
-
-.sc-name {
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1.15;
-}
-
-.sc-badge {
-  flex-shrink: 0;
-  margin-top: 2px;
-  padding: 5px 12px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.scb-open {
-  background: rgba(16, 185, 129, 0.3);
-  border-color: rgba(16, 185, 129, 0.5);
-}
-
-.sc-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.sc-btn {
-  display: inline-flex;
-  align-items: center;
-  padding: 9px 18px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  border: none;
-  transition: opacity 0.15s, transform 0.1s;
-  line-height: 1;
-}
-.sc-btn:active { opacity: 0.8; transform: scale(0.97); }
-
-.sc-btn-solid  { background: white; color: var(--blue); }
-.sc-btn-ghost  { background: rgba(255,255,255,0.15); color: white; border: 1.5px solid rgba(255,255,255,0.35); }
-.sc-btn-green  { background: rgba(16, 185, 129, 0.9); color: white; }
-
 /* ── Section ──────────────────────────────────────── */
 .section {
   display: flex;
   flex-direction: column;
   gap: 0;
 }
-.section-last { padding-bottom: 8px; }
 
 .section-row {
   display: flex;
@@ -555,6 +282,12 @@ function courtTagClass(court) {
 .pill-btn:active { opacity: 0.75; }
 .pill-btn-accent { background: var(--blue); color: white; border-color: var(--blue); }
 .pill-btn-danger { color: var(--danger); border-color: rgba(185, 28, 28, 0.3); }
+.pill-btn-copied {
+  color: #047857;
+  border-color: rgba(16, 185, 129, 0.45);
+  background: rgba(16, 185, 129, 0.12);
+}
+.pill-btn-copied:active { opacity: 1; }
 
 /* ── Court cards ──────────────────────────────────── */
 .courts-stack {
@@ -564,36 +297,30 @@ function courtTagClass(court) {
 }
 
 .court-card {
+  position: relative;
   background: var(--surface);
   border: 1.5px solid var(--border);
-  border-radius: var(--r);
-  padding: 16px;
+  border-radius: 18px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 12px;
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.05);
-  transition: box-shadow 0.2s;
+  transition: box-shadow 0.2s, border-color 0.2s;
 }
-
-.court-card.cc-active {
-  border-color: rgba(16, 185, 129, 0.4);
-  box-shadow:
-    0 0 0 1px rgba(16, 185, 129, 0.15),
-    0 4px 20px rgba(16, 185, 129, 0.1);
+.court-card.live {
+  border-color: rgba(13, 148, 136, 0.5);
+  box-shadow: 0 0 0 1px rgba(13, 148, 136, 0.15), 0 8px 26px rgba(13, 148, 136, 0.16);
 }
+.court-card.maintenance { border-color: rgba(245, 158, 11, 0.45); }
 
-.court-card.cc-maintenance {
-  border-color: rgba(245, 158, 11, 0.35);
-}
-
-/* Court header */
-.cc-head {
+/* Top bar */
+.cc-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
-
 .cc-id {
   display: flex;
   align-items: center;
@@ -601,7 +328,6 @@ function courtTagClass(court) {
   min-width: 0;
   flex: 1;
 }
-
 .cc-dot {
   flex-shrink: 0;
   width: 9px;
@@ -622,33 +348,34 @@ function courtTagClass(court) {
 }
 
 .cc-name {
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.cc-head-right {
+.cc-controls {
   display: flex;
   align-items: center;
   gap: 5px;
   flex-shrink: 0;
 }
-
-.cc-status-tag {
+.cc-status {
   display: inline-flex;
   align-items: center;
-  padding: 3px 9px;
+  padding: 3px 10px;
   border-radius: 999px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
-.tag-live { background: rgba(16, 185, 129, 0.12); color: #065f46; }
+.tag-live { background: rgba(16, 185, 129, 0.14); color: #065f46; }
 .tag-idle { background: #f1f5f9; color: var(--text-3); }
-.tag-warn { background: rgba(245, 158, 11, 0.12); color: #78350f; }
+.tag-warn { background: rgba(245, 158, 11, 0.16); color: #78350f; }
 
 .ic-btn {
   width: 32px;
@@ -667,64 +394,22 @@ function courtTagClass(court) {
 .ic-btn.ic-danger { border-color: rgba(185, 28, 28, 0.25); }
 .ic-btn.ic-danger svg { fill: var(--danger); }
 
-/* Match block */
-.cc-match {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 13px;
-  background: linear-gradient(135deg, #eff6ff, #f0fdf4);
-  border-radius: var(--r-sm);
-  border: 1px solid rgba(21, 101, 192, 0.12);
-}
-
-.cc-teams {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.cc-team {
-  padding: 5px 12px;
-  border-radius: 999px;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1;
-}
-.cc-team-a { background: rgba(21, 101, 192, 0.12); color: #1e3a6e; }
-.cc-team-b { background: rgba(0, 137, 123, 0.12); color: #00443c; }
-
-.cc-vs {
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--text-3);
-}
-
-.cc-time {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-3);
-}
-.cc-elapsed { font-weight: 700; color: var(--blue); }
-.cc-divider { opacity: 0.5; }
-
-.cc-idle {
-  font-size: 14px;
-  color: var(--text-3);
-  font-style: italic;
-}
-
-/* Court actions */
+/* ── Footer ───────────────────────────────────────── */
 .cc-footer {
   display: flex;
+  align-items: center;
   gap: 8px;
-  justify-content: flex-end;
 }
+.cc-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--teal);
+}
+.cc-timer-icon { width: 15px; height: 15px; }
+.cc-actions { display: flex; gap: 8px; margin-left: auto; }
 
 .cc-action-btn {
   display: inline-flex;
@@ -742,8 +427,11 @@ function courtTagClass(court) {
 .cc-action-btn:not(:disabled):active { opacity: 0.8; transform: scale(0.97); }
 
 .cc-action-primary { background: var(--teal); color: white; }
-.cc-action-outline  { background: transparent; border: 1.5px solid var(--border); color: var(--text-2); }
 .cc-action-danger   { background: transparent; border: 1.5px solid rgba(185,28,28,0.28); color: var(--danger); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-dot.dot-active { animation: none; }
+}
 
 /* ── Empty state ──────────────────────────────────── */
 .empty-state {
@@ -765,66 +453,4 @@ function courtTagClass(court) {
   font-size: 13px;
 }
 
-/* ── Past sessions ────────────────────────────────── */
-.collapse-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-align: left;
-  width: 100%;
-  padding: 0 0 12px;
-}
-
-.collapse-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.collapse-count {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-3);
-  background: #f1f5f9;
-  padding: 2px 8px;
-  border-radius: 999px;
-}
-.chevron {
-  color: var(--text-3);
-  display: flex;
-  align-items: center;
-  transition: transform 0.2s ease;
-}
-.chevron.open { transform: rotate(180deg); }
-
-.past-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.past-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 13px 0;
-  border-bottom: 1px solid var(--border);
-}
-.past-item:last-child { border-bottom: none; }
-
-.past-info { flex: 1; min-width: 0; }
-.past-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.past-meta { font-size: 12px; color: var(--text-3); margin-top: 2px; }
-
-.past-actions {
-  display: flex;
-  gap: 5px;
-  flex-shrink: 0;
-}
 </style>

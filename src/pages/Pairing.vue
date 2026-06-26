@@ -137,7 +137,7 @@ const matchFormat = computed(() => session.value?.gameType || "doubles");
 
 const joinedPlayers = computed(() => {
   return sessionPlayers.value
-    .filter((sp) => sp.status !== "done")
+    .filter((sp) => sp.status !== "done" && sp.status !== "pending_payment" && sp.status !== "waitlisted")
     .sort((a, b) => new Date(a.checkedInAt) - new Date(b.checkedInAt))
     .map((sp) => ({
       id: sp.player.id,

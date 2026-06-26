@@ -1,7 +1,7 @@
 import { onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { api } from "../api.js";
-import { selectedSessionId, setPendingSessionId, setSelectedSessionId } from "../state/sessionStore.js";
+import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.js";
 
 export function useDashboard() {
   const router = useRouter();
@@ -11,26 +11,6 @@ export function useDashboard() {
   const error = ref("");
   const nowTick = ref(Date.now());
   let timerId = null;
-
-  // Session create
-  const newSessionName = ref("Evening Open Play");
-  const newGameType = ref("doubles");
-  const newSessionMode = ref("usual");
-  const feeAmount = ref(100);
-  const regularJoinLimit = ref(0);
-  const newJoinerLimit = ref(0);
-  const showCreateSession = ref(false);
-  const createError = ref("");
-
-  // Session edit
-  const showEditSession = ref(false);
-  const editSessionName = ref("");
-  const editGameType = ref("doubles");
-  const editSessionMode = ref("usual");
-  const editSessionFeeAmount = ref(0);
-  const editRegularJoinLimit = ref(0);
-  const editNewJoinerLimit = ref(0);
-  const editSessionError = ref("");
 
   // Court add
   const showAddCourt = ref(false);
@@ -71,23 +51,6 @@ export function useDashboard() {
   const showInviteWarning = ref(false);
   let inviteCopyTimer = null;
 
-  // Past sessions
-  const pastSessions = ref([]);
-  const showPastSessions = ref(false);
-  const showRoster = ref(false);
-  const rosterPlayers = ref([]);
-  const rosterSession = ref(null);
-
-  // Fee edit
-  const showEditFee = ref(false);
-  const editFeeAmount = ref(0);
-  const editFeeError = ref("");
-
-  // Session delete
-  const showDeleteSession = ref(false);
-  const deleteSessionTarget = ref(null);
-  const deleteSessionError = ref("");
-
   // ── Data loading ──────────────────────────────────────────────────────────
 
   async function refresh() {
@@ -107,9 +70,6 @@ export function useDashboard() {
       if (!sessionData) {
         session.value = null;
         courts.value = [];
-        await loadPastSessions();
-        regularJoinLimit.value = 0;
-        newJoinerLimit.value = 0;
         return;
       }
 
@@ -137,178 +97,11 @@ export function useDashboard() {
       );
       session.value = { ...sessionData, courtSessions: sortedCourts };
       courts.value = sortedCourts;
-      await loadPastSessions();
     } catch {
       session.value = null;
       courts.value = [];
-      await loadPastSessions();
-      regularJoinLimit.value = 0;
-      newJoinerLimit.value = 0;
     } finally {
       document.dispatchEvent(new Event("sessions:updated"));
-    }
-  }
-
-  async function loadPastSessions() {
-    try {
-      const sessions = await api.listSessions();
-      pastSessions.value = (sessions || [])
-        .filter((s) => s.status !== "open")
-        .sort((a, b) => {
-          const aTime = new Date(a.closedAt || a.createdAt || 0).getTime();
-          const bTime = new Date(b.closedAt || b.createdAt || 0).getTime();
-          return bTime - aTime;
-        });
-    } catch {
-      pastSessions.value = [];
-    }
-  }
-
-  // ── Session actions ───────────────────────────────────────────────────────
-
-  function openCreateSession() {
-    createError.value = "";
-    showCreateSession.value = true;
-  }
-
-  function closeCreateSession() {
-    showCreateSession.value = false;
-    createError.value = "";
-  }
-
-  async function createSession() {
-    createError.value = "";
-    try {
-      const created = await api.createSession({
-        name: newSessionName.value,
-        gameType: newGameType.value,
-        mode: newSessionMode.value,
-        feeMode: "flat",
-        feeAmount: Number(feeAmount.value),
-        regularJoinLimit: Math.max(0, Number(regularJoinLimit.value) || 0),
-        newJoinerLimit: Math.max(0, Number(newJoinerLimit.value) || 0),
-      });
-      await api.openSession(created.id);
-      setPendingSessionId(created.id);
-      setSelectedSessionId(created.id);
-      await refresh();
-      showCreateSession.value = false;
-    } catch (err) {
-      createError.value = err.message || "Unable to create session";
-    }
-  }
-
-  function openEditSession() {
-    if (!session.value) return;
-    editSessionError.value = "";
-    editSessionName.value = session.value.name || "";
-    editGameType.value = session.value.gameType || "doubles";
-    editSessionMode.value = session.value.mode || "usual";
-    editSessionFeeAmount.value = Number(session.value.feeAmount || 0);
-    editRegularJoinLimit.value = Number(session.value.regularJoinLimit || 0);
-    editNewJoinerLimit.value = Number(session.value.newJoinerLimit || 0);
-    showEditSession.value = true;
-  }
-
-  function closeEditSession() {
-    showEditSession.value = false;
-    editSessionError.value = "";
-  }
-
-  async function saveEditSession() {
-    if (!session.value) return;
-    editSessionError.value = "";
-    try {
-      await api.updateSession(session.value.id, {
-        name: editSessionName.value,
-        gameType: editGameType.value,
-        mode: editSessionMode.value,
-        feeAmount: Number(editSessionFeeAmount.value || 0),
-        regularJoinLimit: Math.max(0, Number(editRegularJoinLimit.value) || 0),
-        newJoinerLimit: Math.max(0, Number(editNewJoinerLimit.value) || 0),
-      });
-      showEditSession.value = false;
-      await refresh();
-    } catch (err) {
-      editSessionError.value = err.message || "Unable to update session";
-    }
-  }
-
-  async function openSession() {
-    if (!session.value) return;
-    try {
-      await api.openSession(session.value.id);
-      await refresh();
-    } catch (err) {
-      error.value = err.message || "Unable to open session";
-    }
-  }
-
-  async function closeSession() {
-    if (!session.value) return;
-    await api.closeSession(session.value.id);
-    await refresh();
-  }
-
-  function openDeleteSession(target) {
-    deleteSessionTarget.value = target;
-    deleteSessionError.value = "";
-    showDeleteSession.value = true;
-  }
-
-  function closeDeleteSession() {
-    showDeleteSession.value = false;
-    deleteSessionTarget.value = null;
-    deleteSessionError.value = "";
-  }
-
-  async function confirmDeleteSession() {
-    if (!deleteSessionTarget.value) return;
-    deleteSessionError.value = "";
-    try {
-      await api.deleteSession(deleteSessionTarget.value.id);
-      closeDeleteSession();
-      await refresh();
-    } catch (err) {
-      deleteSessionError.value = err.message || "Unable to delete session";
-    }
-  }
-
-  async function reopenSession(sessionItem) {
-    try {
-      await api.openSession(sessionItem.id);
-      await refresh();
-    } catch (err) {
-      error.value = err.message || "Unable to reopen session";
-    }
-  }
-
-  // ── Fee actions ───────────────────────────────────────────────────────────
-
-  function openEditFee() {
-    if (!session.value || session.value.status !== "open") return;
-    editFeeAmount.value = Number(session.value.feeAmount || 0);
-    editFeeError.value = "";
-    showEditFee.value = true;
-  }
-
-  function closeEditFee() {
-    showEditFee.value = false;
-    editFeeError.value = "";
-  }
-
-  async function saveEditFee() {
-    if (!session.value || session.value.status !== "open") return;
-    editFeeError.value = "";
-    try {
-      await api.updateSessionFee(session.value.id, {
-        feeMode: "flat",
-        feeAmount: Number(editFeeAmount.value),
-      });
-      showEditFee.value = false;
-      await refresh();
-    } catch (err) {
-      editFeeError.value = err.message || "Unable to update fee";
     }
   }
 
@@ -431,27 +224,6 @@ export function useDashboard() {
     endMatchScoreB.value = "";
   }
 
-  async function setWinner(winnerTeam) {
-    if (!session.value || !endMatchCourt.value?.currentMatchId) return;
-    try {
-      const payload = { matchId: endMatchCourt.value.currentMatchId };
-      if (winnerTeam) payload.winnerTeam = winnerTeam;
-      const scoreA = parseScoreValue(endMatchScoreA.value);
-      const scoreB = parseScoreValue(endMatchScoreB.value);
-      if (scoreA != null || scoreB != null) {
-        const score = {};
-        if (scoreA != null) score.team1 = scoreA;
-        if (scoreB != null) score.team2 = scoreB;
-        payload.score = score;
-      }
-      await api.endMatch(session.value.id, payload);
-      closeEndMatch();
-      await refresh();
-    } catch (err) {
-      endMatchError.value = err.message || "Unable to end match";
-    }
-  }
-
   async function finishMatch() {
     if (!session.value || !endMatchCourt.value?.currentMatchId) return;
     try {
@@ -497,7 +269,17 @@ export function useDashboard() {
     }
     const link = await api.createSessionShareLink(session.value.id);
     inviteLink.value = `${window.location.origin}/q/${link.token}`;
-    showInviteLink.value = true;
+    try {
+      await navigator.clipboard.writeText(inviteLink.value);
+      inviteCopied.value = true;
+      if (inviteCopyTimer) window.clearTimeout(inviteCopyTimer);
+      inviteCopyTimer = window.setTimeout(() => {
+        inviteCopied.value = false;
+      }, 2000);
+    } catch {
+      // Clipboard unavailable — fall back to the modal so the link can be copied manually.
+      showInviteLink.value = true;
+    }
   }
 
   async function copyInviteLink() {
@@ -520,25 +302,7 @@ export function useDashboard() {
     showInviteWarning.value = false;
   }
 
-  // ── Roster ────────────────────────────────────────────────────────────────
-
-  async function viewRoster(sessionItem) {
-    rosterSession.value = sessionItem;
-    rosterPlayers.value = await api.sessionPlayers(sessionItem.id);
-    showRoster.value = true;
-  }
-
-  function closeRoster() {
-    showRoster.value = false;
-    rosterPlayers.value = [];
-    rosterSession.value = null;
-  }
-
   // ── Helpers ───────────────────────────────────────────────────────────────
-
-  function togglePastSessions() {
-    showPastSessions.value = !showPastSessions.value;
-  }
 
   function goToPlayers() {
     router.push("/players");
@@ -564,11 +328,6 @@ export function useDashboard() {
       if (unique.size === 1) return [...unique][0];
     }
     return teamNumber === 1 ? "Team A" : "Team B";
-  }
-
-  function formatTime(timestamp) {
-    if (!timestamp) return "—";
-    return new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
 
   function elapsedTime(startedAt) {
@@ -603,16 +362,6 @@ export function useDashboard() {
     return (courtSession?.court?.name || courtSession?.name || "").trim();
   }
 
-  function formatDateTime(timestamp) {
-    if (!timestamp) return "—";
-    return new Date(timestamp).toLocaleString([], {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }
-
   function parseScoreValue(value) {
     if (value === "" || value === null || value === undefined) return null;
     const numberValue = Number(value);
@@ -640,47 +389,28 @@ export function useDashboard() {
 
   return {
     // State
-    session, courts, error, nowTick,
-    // Session create
-    newSessionName, newGameType, newSessionMode, feeAmount,
-    regularJoinLimit, newJoinerLimit, showCreateSession, createError,
-    // Session edit
-    showEditSession, editSessionName, editGameType, editSessionMode,
-    editSessionFeeAmount, editRegularJoinLimit, editNewJoinerLimit, editSessionError,
+    courts, error,
     // Court add
     showAddCourt, newCourtName, newCourtNotes, addCourtError,
     // Court edit
-    showEditCourt, editCourtId, editCourtName, editCourtNotes, editCourtError,
+    showEditCourt, editCourtName, editCourtNotes, editCourtError,
     // Court delete
-    showDeleteCourt, deleteCourtId, deleteCourtName, deleteCourtError,
+    showDeleteCourt, deleteCourtName, deleteCourtError,
     // End match
-    showEndMatch, endMatchCourt, endMatchError, endMatchTeams, endMatchScoreA, endMatchScoreB,
+    showEndMatch, endMatchError, endMatchTeams, endMatchScoreA, endMatchScoreB,
     // Invite
     showInviteLink, inviteLink, inviteCopied, showInviteWarning,
-    // Past sessions
-    pastSessions, showPastSessions, showRoster, rosterPlayers, rosterSession,
-    // Fee
-    showEditFee, editFeeAmount, editFeeError,
-    // Session delete
-    showDeleteSession, deleteSessionTarget, deleteSessionError,
     // Actions
     refresh,
-    openCreateSession, closeCreateSession, createSession,
-    openEditSession, closeEditSession, saveEditSession,
-    openSession, closeSession,
-    openDeleteSession, closeDeleteSession, confirmDeleteSession,
-    reopenSession,
-    openEditFee, closeEditFee, saveEditFee,
     createCourt, closeAddCourt,
     openEditCourt, updateCourt, closeEditCourt,
     deleteCourt, confirmDeleteCourt, closeDeleteCourt,
-    openEndMatch, closeEndMatch, setWinner, finishMatch,
+    openEndMatch, closeEndMatch, finishMatch,
     cancelMatch,
     createInviteLink, copyInviteLink, closeInviteLink, closeInviteWarning,
-    viewRoster, closeRoster,
-    togglePastSessions, goToPlayers,
+    goToPlayers,
     // Formatters / helpers
-    teamNames, teamDisplayName, formatTime, elapsedTime,
-    courtStatusLabel, courtDotClass, courtSortName, formatDateTime, parseScoreValue,
+    teamNames, elapsedTime,
+    courtStatusLabel, courtDotClass,
   };
 }

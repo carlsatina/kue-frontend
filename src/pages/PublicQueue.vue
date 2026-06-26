@@ -14,9 +14,21 @@
             <div class="pq-eyebrow">Live Queue</div>
             <h1 class="pq-title">{{ data.session?.name || 'Queue' }}</h1>
           </div>
-          <div class="pq-live-pill">
-            <span class="pq-live-dot" aria-hidden="true"></span>
-            Live
+          <div class="pq-live-group">
+            <div class="pq-live-pill">
+              <span class="pq-live-dot" aria-hidden="true"></span>
+              Live
+            </div>
+            <button
+              class="pq-refresh-btn"
+              type="button"
+              :class="{ spinning: refreshing }"
+              :disabled="refreshing"
+              aria-label="Refresh"
+              @click="manualRefresh"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+            </button>
           </div>
         </div>
         <div class="pq-hero-actions">
@@ -61,18 +73,20 @@
             </span>
           </div>
 
-          <div v-if="court.currentMatch" class="court-match">
-            <div class="court-match-teams">
-              <span class="court-team team-a">{{ teamLabel(court.currentMatch, 1) || "—" }}</span>
-              <span class="court-vs">vs</span>
-              <span class="court-team team-b">{{ teamLabel(court.currentMatch, 2) || "—" }}</span>
-            </div>
-            <div class="court-times">
-              <span>{{ formatTime(court.currentMatch?.startedAt) }}</span>
-              <span class="court-elapsed">{{ elapsedTime(court.currentMatch?.startedAt) }}</span>
-            </div>
+          <CourtFloor
+            :name="court.court.name"
+            :state="courtState(court)"
+            :team-a="teamLabel(court.currentMatch, 1)"
+            :team-b="teamLabel(court.currentMatch, 2)"
+            :empty-text="court.status === 'maintenance' ? 'Under maintenance' : 'Waiting for next match'"
+          />
+
+          <div v-if="court.currentMatch" class="court-foot">
+            <span class="court-elapsed">
+              <svg class="court-elapsed-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 9.5V13l2.5 2M9 2.5h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              {{ elapsedTime(court.currentMatch?.startedAt) }}
+            </span>
           </div>
-          <div v-else class="court-idle">Waiting for next match</div>
         </div>
       </div>
     </div>
@@ -256,6 +270,7 @@ import { applySeedOrder, extractSeedOrder } from "../utils/seedOrder.js";
 import "vue3-tournament/style.css";
 import { api } from "../api.js";
 import { useRoute } from "vue-router";
+import CourtFloor from "../components/CourtFloor.vue";
 
 const route = useRoute();
 const data = ref({});
@@ -271,6 +286,8 @@ const isPulling = ref(false);
 const refreshing = ref(false);
 const nowTick = ref(Date.now());
 let timerId = null;
+let refreshTimerId = null;
+const REFRESH_INTERVAL_MS = 10000; // re-fetch live data every 10s
 const showRankingsModal = ref(false);
 const showBracketModal = ref(false);
 const bracketLoading = ref(false);
@@ -417,6 +434,7 @@ const rankTitle = computed(() => {
 });
 
 function teamLabel(match, teamNumber) {
+  if (!match?.participants) return "";
   return match.participants
     .filter((p) => p.teamNumber === teamNumber)
     .map((p) => p.player.nickname || p.player.fullName)
@@ -454,6 +472,12 @@ function courtStatusClass(court) {
   if (court.status === "maintenance") return "warning";
   if (court.currentMatch || court.status === "in_match" || court.status === "occupied") return "live";
   return "";
+}
+
+function courtState(court) {
+  if (court.currentMatch) return "live";
+  if (court.status === "maintenance") return "maintenance";
+  return "idle";
 }
 
 function winPct(value) {
@@ -660,26 +684,44 @@ function setPageTitle(name) {
   if (twitter) twitter.setAttribute("content", title);
 }
 
-async function load() {
+async function load({ silent = false } = {}) {
+  const reqOptions = silent ? { showLoading: false } : undefined;
   try {
-    data.value = await api.publicQueue(route.params.token);
-    setPageTitle(data.value?.session?.name);
-    const defaultType = data.value?.session?.defaultBracketType;
+    const result = await api.publicQueue(route.params.token, reqOptions);
+    data.value = result;
+    setPageTitle(result?.session?.name);
+    const defaultType = result?.session?.defaultBracketType;
     if (defaultType) {
       bracketType.value = defaultType;
     }
   } catch {
-    data.value = {};
-    setPageTitle("");
+    // Keep the last good data on a failed background refresh; only clear on the
+    // initial (non-silent) load so a transient blip doesn't blank the screen.
+    if (!silent) {
+      data.value = {};
+      setPageTitle("");
+    }
   }
 
   try {
-    const rankingData = await api.publicQueueRankings(route.params.token);
+    const rankingData = await api.publicQueueRankings(route.params.token, reqOptions);
     rankedPlayers.value = rankingData.players || [];
     totalPlayers.value = rankingData.totalPlayers || 0;
   } catch {
-    rankedPlayers.value = [];
-    totalPlayers.value = 0;
+    if (!silent) {
+      rankedPlayers.value = [];
+      totalPlayers.value = 0;
+    }
+  }
+}
+
+async function manualRefresh() {
+  if (refreshing.value) return;
+  refreshing.value = true;
+  try {
+    await load();
+  } finally {
+    refreshing.value = false;
   }
 }
 
@@ -1188,10 +1230,15 @@ onMounted(() => {
   timerId = setInterval(() => {
     nowTick.value = Date.now();
   }, 1000);
+  // Keep the live queue current by re-fetching courts/matches/queue periodically.
+  refreshTimerId = setInterval(() => {
+    if (!refreshing.value) load({ silent: true });
+  }, REFRESH_INTERVAL_MS);
 });
 
 onUnmounted(() => {
   if (timerId) clearInterval(timerId);
+  if (refreshTimerId) clearInterval(refreshTimerId);
 });
 </script>
 
@@ -1261,6 +1308,13 @@ onUnmounted(() => {
   line-height: 1.2;
 }
 
+.pq-live-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .pq-live-pill {
   display: inline-flex;
   align-items: center;
@@ -1272,6 +1326,43 @@ onUnmounted(() => {
   font-weight: 700;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.pq-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.pq-refresh-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.pq-refresh-btn:disabled {
+  cursor: default;
+}
+
+.pq-refresh-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.pq-refresh-btn.spinning svg {
+  animation: pq-spin 0.7s linear infinite;
+}
+
+@keyframes pq-spin {
+  to { transform: rotate(360deg); }
 }
 
 .pq-live-dot {
@@ -1399,12 +1490,6 @@ onUnmounted(() => {
   gap: 10px;
 }
 
-@media (min-width: 480px) {
-  .courts-grid {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  }
-}
-
 .court-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
@@ -1416,8 +1501,8 @@ onUnmounted(() => {
 }
 
 .court-card.playing {
-  border-color: #1565c0;
-  box-shadow: 0 0 0 2px rgba(21,101,192,0.1);
+  border-color: #0d9488;
+  box-shadow: 0 0 0 2px rgba(13,148,136,0.1);
 }
 
 .court-card-head {
@@ -1442,8 +1527,8 @@ onUnmounted(() => {
 }
 
 .court-status-badge.live {
-  background: rgba(21,101,192,0.1);
-  color: #1565c0;
+  background: rgba(13,148,136,0.12);
+  color: #0f766e;
 }
 
 .court-status-badge.warning {
@@ -1451,59 +1536,24 @@ onUnmounted(() => {
   color: #b45f5f;
 }
 
-.court-match {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.court-match-teams {
+.court-foot {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.court-team {
-  font-size: 13px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 6px;
-}
-
-.court-team.team-a {
-  background: rgba(21,101,192,0.08);
-  color: #1565c0;
-}
-
-.court-team.team-b {
-  background: rgba(0,137,123,0.08);
-  color: #00897b;
-}
-
-.court-vs {
-  font-size: 11px;
-  font-weight: 700;
-  color: #94a3b8;
-  text-transform: uppercase;
-}
-
-.court-times {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 12px;
-  color: #94a3b8;
 }
 
 .court-elapsed {
-  font-weight: 600;
-  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f766e;
+  font-variant-numeric: tabular-nums;
 }
 
-.court-idle {
-  font-size: 13px;
-  color: #94a3b8;
+.court-elapsed-icon {
+  width: 14px;
+  height: 14px;
 }
 
 /* ── Queue list ──────────────────────────────────────────────────── */

@@ -21,6 +21,14 @@
         <button class="button button-compact" style="margin-top:12px" @click="openCreateSession">Create Session</button>
       </div>
       <template v-else>
+        <!-- Players header: session-level join link -->
+        <div v-if="session" class="players-header">
+          <span class="players-header-hint">Share with players to join this session</span>
+          <button class="link-button" :class="{ copied: joinLinkCopied }" @click="openJoinLink">
+            <span class="link-icon">{{ joinLinkCopied ? "✓" : "🔗" }}</span> {{ joinLinkCopied ? "Link Copied!" : "Join Link" }}
+          </button>
+        </div>
+
         <!-- Search row -->
         <div class="search-row">
           <template v-if="selectionTab === 'players'">
@@ -144,23 +152,23 @@
         </div>
 
         <!-- Add Player section -->
-        <div class="add-player-section" :class="{ 'over-limit': joinLimitExceeded }">
-          <h2 class="add-player-heading">Add Player</h2>
-          <div class="add-player-form">
-            <input class="input" v-model="fullName" placeholder="Player name" :disabled="!sessionIsOpen" />
-            <div class="chip-row">
-              <button v-for="level in skillLevels" :key="level" class="chip" :class="{ active: skillLevel === level }" type="button" :disabled="!sessionIsOpen" @click="skillLevel = level">{{ level }}</button>
+        <div class="add-player-section" :class="{ 'over-limit': joinLimitExceeded, collapsed: !showAddPlayer }">
+          <button class="add-player-heading" type="button" :aria-expanded="showAddPlayer" @click="showAddPlayer = !showAddPlayer">
+            <span>Add Player</span>
+            <svg class="add-player-chevron" :class="{ open: showAddPlayer }" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path fill="currentColor" d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"></path>
+            </svg>
+          </button>
+          <template v-if="showAddPlayer">
+            <div class="add-player-form">
+              <input class="input" v-model="fullName" placeholder="Player name" :disabled="!sessionIsOpen" />
+              <div class="chip-row">
+                <button v-for="level in skillLevels" :key="level" class="chip" :class="{ active: skillLevel === level }" type="button" :disabled="!sessionIsOpen" @click="skillLevel = level">{{ level }}</button>
+              </div>
+              <button class="button" @click="addPlayer" :disabled="!sessionIsOpen">Add Player</button>
+              <div v-if="addError" class="notice">{{ addError }}</div>
             </div>
-            <button class="button" @click="addPlayer" :disabled="!sessionIsOpen">Add Player</button>
-            <div v-if="addError" class="notice">{{ addError }}</div>
-          </div>
-          <div v-if="session" class="join-link-row">
-            <button class="button ghost button-compact" @click="openJoinLink">
-              <svg viewBox="0 0 24 24" width="15" height="15" style="margin-right:5px;vertical-align:-2px"><path fill="currentColor" d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
-              Join Link
-            </button>
-            <span class="join-link-hint">Share with players to join this session</span>
-          </div>
+          </template>
         </div>
       </template>
     </template>
@@ -172,8 +180,8 @@
           <h2 class="tab-heading">Queue</h2>
           <p class="text-muted">{{ queueMatches.length }} match{{ queueMatches.length === 1 ? '' : 'es' }} waiting</p>
         </div>
-        <button class="link-button" @click="createQueueShareLink">
-          <span class="link-icon">🔗</span> Share Link
+        <button class="link-button" :class="{ copied: queueCopied }" @click="createQueueShareLink">
+          <span class="link-icon">{{ queueCopied ? "✓" : "🔗" }}</span> {{ queueCopied ? "Link Copied!" : "Share Link" }}
         </button>
       </div>
 
@@ -591,6 +599,7 @@ let joinLinkCopyTimer = null;
 const historySearch = ref("");
 const showDisplayMenu = ref(false);
 const showJoinOrder = ref(false);
+const showAddPlayer = ref(true);
 const teamSearch = ref("");
 const displayMenuRef = ref(null);
 const sessionIsOpen = computed(() => session.value?.status === "open");
@@ -778,7 +787,14 @@ const playingTeamKeys = computed(() => {
 
 const sessionPlayerList = computed(() => {
   if (!session.value) return [];
-  return sessionPlayers.value.filter((sp) => sp.status !== "done").map((sp) => sp.player);
+  const requiresPayment = Boolean(session.value.requirePaymentToJoin);
+  return sessionPlayers.value
+    .filter((sp) => sp.status !== "done")
+    // Waitlisted players haven't secured a slot yet — keep them out of the list.
+    .filter((sp) => sp.status !== "waitlisted")
+    // Hide players who haven't paid yet when the session requires payment to join.
+    .filter((sp) => !(requiresPayment && sp.status === "pending_payment"))
+    .map((sp) => sp.player);
 });
 
 const joinedPlayersForTeams = computed(() => {
@@ -1152,6 +1168,8 @@ function statusLabel(player) {
   if (isQueued(player)) return "Queued";
   const sp = sessionPlayerMap.value.get(player.id);
   if (!sp) return "—";
+  if (sp.status === "pending_payment") return "Awaiting payment";
+  if (sp.status === "waitlisted") return "Waitlisted";
   if (sp.status === "away") return "Away";
   if (sp.status === "done") return "Done";
   if (sp.status === "present") return "Present";
@@ -1171,6 +1189,8 @@ function statusClass(player) {
   if (isQueued(player)) return "queued";
   const sp = sessionPlayerMap.value.get(player.id);
   if (!sp) return "neutral";
+  if (sp.status === "pending_payment") return "warning";
+  if (sp.status === "waitlisted") return "neutral";
   if (sp.status === "away") return "away";
   if (sp.status === "done") return "done";
   if (sp.status === "present") return "present";
@@ -1666,7 +1686,15 @@ async function openJoinLink() {
   if (!session.value) return;
   const link = await api.createSessionInviteLink(session.value.id);
   joinLink.value = `${window.location.origin}/join/${link.token}`;
-  showJoinLinkModal.value = true;
+  try {
+    await navigator.clipboard.writeText(joinLink.value);
+    joinLinkCopied.value = true;
+    if (joinLinkCopyTimer) window.clearTimeout(joinLinkCopyTimer);
+    joinLinkCopyTimer = window.setTimeout(() => { joinLinkCopied.value = false; }, 2000);
+  } catch {
+    // Clipboard unavailable — fall back to the modal so the link can be copied manually.
+    showJoinLinkModal.value = true;
+  }
 }
 
 async function copyJoinLink() {
@@ -1687,6 +1715,14 @@ async function createQueueShareLink() {
   if (!session.value) return;
   const link = await api.createSessionShareLink(session.value.id);
   queueShareLink.value = `${window.location.origin}/q/${link.token}`;
+  try {
+    await navigator.clipboard.writeText(queueShareLink.value);
+    queueCopied.value = true;
+    if (queueCopyTimer) window.clearTimeout(queueCopyTimer);
+    queueCopyTimer = window.setTimeout(() => { queueCopied.value = false; }, 2000);
+  } catch {
+    // Clipboard unavailable — the link stays visible in the card below for manual copy.
+  }
 }
 
 async function copyQueueShareLink() {
@@ -2701,11 +2737,34 @@ onUnmounted(() => {
   gap: 12px;
 }
 
+.add-player-section.collapsed {
+  gap: 0;
+}
+
 .add-player-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
   font-size: 18px;
   font-weight: 700;
   margin: 0;
+  padding: 0;
+  background: none;
+  border: none;
   color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.add-player-chevron {
+  flex-shrink: 0;
+  color: var(--ink-soft);
+  transition: transform 0.18s ease;
+}
+
+.add-player-chevron.open {
+  transform: rotate(180deg);
 }
 
 .add-player-form {
@@ -2732,14 +2791,15 @@ onUnmounted(() => {
   }
 }
 
-.join-link-row {
+.players-header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
 }
 
-.join-link-hint {
+.players-header-hint {
   font-size: 13px;
   color: var(--ink-soft);
 }

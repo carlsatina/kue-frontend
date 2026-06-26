@@ -9,16 +9,75 @@
       <strong>{{ session?.name }}</strong>
       <div class="subtitle">{{ session?.status }}</div>
 
-      <input class="input" v-model="fullName" placeholder="Full name" />
-      
-      <label class="radio-row">
-        <input type="checkbox" v-model="newPlayer" />
-        New Player
-      </label>
+      <!-- Step 1: name -->
+      <template v-if="step === 'form'">
+        <input class="input" v-model="fullName" placeholder="Full name" />
 
-      <button class="button" @click="submit">Submit</button>
-      <button class="button ghost" @click="openPlayers">View Joined Players</button>
-      <div v-if="success" class="notice">You're checked in!</div>
+        <label class="radio-row">
+          <input type="checkbox" v-model="newPlayer" />
+          New Player
+        </label>
+
+        <button class="button" @click="submit">Submit</button>
+        <button class="button ghost" @click="openPlayers">View Joined Players</button>
+        <div v-if="success" class="notice">You're checked in!</div>
+      </template>
+
+      <!-- Step 2: payment proof -->
+      <template v-else-if="step === 'proof'">
+        <div class="notice">
+          Payment is required to join this session.
+          <template v-if="joinFee > 0"> Amount due: <strong>{{ joinFee }}</strong>.</template>
+          Upload a screenshot of your payment to complete your registration.
+          <template v-if="deadlineText"> Please pay before <strong>{{ deadlineText }}</strong> to keep your slot.</template>
+        </div>
+        <div class="field">
+          <label class="field-label">Payment method</label>
+          <select class="input" v-model="method">
+            <option value="GCash">GCash</option>
+            <option value="Maya">Maya</option>
+            <option value="Bank transfer">Bank transfer</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label">Proof of payment</label>
+          <input class="input" type="file" accept="image/*" @change="onProofChange" />
+        </div>
+        <div v-if="proofError" class="notice">{{ proofError }}</div>
+        <button class="button" :disabled="proofSubmitting" @click="submitProof">
+          {{ proofSubmitting ? "Uploading..." : "Submit proof" }}
+        </button>
+        <div class="subtitle pay-later-note">
+          Want to pay later? You can close this and submit your proof anytime using the
+          payment link your organizer shares
+          <template v-if="deadlineText">— just make sure it's before {{ deadlineText }}</template>.
+        </div>
+      </template>
+
+      <!-- Waitlist: session full, must wait for the deadline -->
+      <template v-else-if="step === 'waitlist'">
+        <div class="notice">
+          This session is currently full, so you've been added to the <strong>waitlist</strong>.
+          <template v-if="deadlineText">
+            If any slots open up after <strong>{{ deadlineText }}</strong>, you'll be able to
+            pay and claim a spot. Please check back then.
+          </template>
+          <template v-else>
+            You'll be able to pay and claim a spot if one opens up. Please check back later.
+          </template>
+        </div>
+        <button class="button ghost" @click="openPlayers">View Joined Players</button>
+      </template>
+
+      <!-- Step 3: awaiting approval -->
+      <template v-else-if="step === 'awaiting'">
+        <div class="notice">
+          Thanks! Your proof of payment was submitted and is awaiting approval from the
+          organizer. You'll be added to the session once it's confirmed.
+        </div>
+        <button class="button ghost" @click="openPlayers">View Joined Players</button>
+      </template>
     </div>
   </div>
   <div v-if="showPlayers" class="modal-backdrop">
@@ -70,6 +129,24 @@ const error = ref("");
 const success = ref(false);
 const fullName = ref("");
 const newPlayer = ref(false);
+const step = ref("form");
+const pendingPlayerId = ref("");
+const joinFee = ref(0);
+const method = ref("GCash");
+const proofFile = ref(null);
+const proofError = ref("");
+const proofSubmitting = ref(false);
+const deadlineText = ref("");
+
+function formatDeadline(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString([], {
+    weekday: "short", month: "short", day: "numeric",
+    hour: "numeric", minute: "2-digit"
+  });
+}
 const showPlayers = ref(false);
 const joinedPlayers = ref([]);
 const playersLoading = ref(false);
@@ -132,15 +209,50 @@ async function submit() {
     return;
   }
   try {
-    await api.publicSessionRegister(route.params.token, {
+    const res = await api.publicSessionRegister(route.params.token, {
       fullName: fullName.value.trim(),
       newPlayer: newPlayer.value
     });
-    success.value = true;
-    fullName.value = "";
-    newPlayer.value = false;
+    pendingPlayerId.value = res.player.id;
+    joinFee.value = Number(res.fee || 0);
+    deadlineText.value = formatDeadline(res.paymentDeadline);
+    if (res.canPay) {
+      step.value = "proof";
+    } else if (res.waitlisted) {
+      step.value = "waitlist";
+    } else {
+      success.value = true;
+      fullName.value = "";
+      newPlayer.value = false;
+    }
   } catch (err) {
     error.value = err.message || "Unable to register";
+  }
+}
+
+function onProofChange(e) {
+  proofFile.value = e.target.files?.[0] || null;
+}
+
+async function submitProof() {
+  proofError.value = "";
+  if (!proofFile.value) {
+    proofError.value = "Please choose an image of your payment.";
+    return;
+  }
+  proofSubmitting.value = true;
+  try {
+    await api.publicSubmitJoinProof(
+      route.params.token,
+      pendingPlayerId.value,
+      method.value,
+      proofFile.value
+    );
+    step.value = "awaiting";
+  } catch (err) {
+    proofError.value = err.message || "Unable to submit proof";
+  } finally {
+    proofSubmitting.value = false;
   }
 }
 

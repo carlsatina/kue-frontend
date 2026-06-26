@@ -150,8 +150,8 @@ export const api = {
       .then((r) => r.json().then((d) => { if (!r.ok) throw new Error(d.error || "Request failed"); return d; }));
   },
   publicPlayer: (token) => publicRequest(`/public/player/${token}`),
-  publicQueue: (token) => publicRequest(`/public/queue/${token}`),
-  publicQueueRankings: (token) => publicRequest(`/public/queue/${token}/rankings`),
+  publicQueue: (token, options) => publicRequest(`/public/queue/${token}`, options),
+  publicQueueRankings: (token, options) => publicRequest(`/public/queue/${token}/rankings`, options),
   publicQueueTeamStats: (token) => publicRequest(`/public/queue/${token}/team-stats`),
   publicQueueBracket: (token) => publicRequest(`/public/queue/${token}/bracket`),
   publicSessionInvite: (token) => publicRequest(`/public/session-invite/${token}`),
@@ -162,5 +162,13 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     }),
+  publicSubmitJoinProof: (token, playerId, method, proofFile) => {
+    const form = new FormData();
+    form.append("playerId", playerId);
+    form.append("method", method);
+    form.append("proof", proofFile);
+    return fetch(`${API_URL}/public/session-invite/${token}/proof`, { method: "POST", body: form })
+      .then((r) => r.json().then((d) => { if (!r.ok) throw new Error(d.error || "Request failed"); return d; }));
+  },
   publicBoard: (sessionId) => publicRequest(`/public/board/${sessionId}`)
 };

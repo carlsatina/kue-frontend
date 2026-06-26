@@ -15,6 +15,7 @@ import Pairing from "./pages/Pairing.vue";
 import Teams from "./pages/Teams.vue";
 import TeamDetail from "./pages/TeamDetail.vue";
 import Profile from "./pages/Profile.vue";
+import ManageSessions from "./pages/ManageSessions.vue";
 import CheckEmail from "./pages/CheckEmail.vue";
 import VerifyEmail from "./pages/VerifyEmail.vue";
 import ForgotPassword from "./pages/ForgotPassword.vue";
@@ -41,7 +42,8 @@ const routes = [
   { path: "/teams", component: Teams, meta: { depth: 1 } },
   { path: "/teams/:id", component: TeamDetail, meta: { depth: 2 } },
   { path: "/fees", component: Fees },
-  { path: "/profile", component: Profile }
+  { path: "/profile", component: Profile },
+  { path: "/sessions", component: ManageSessions }
 ];
 
 const router = createRouter({
