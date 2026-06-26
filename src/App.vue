@@ -393,6 +393,9 @@ async function submitCreateSession() {
     showCreateSession.value = false;
     await loadSessions();
     setSelectedSessionId(created.id);
+    // Take the user to the dashboard to start working with the new session
+    // (also avoids leaving stale lists like Manage Sessions on screen).
+    if (route.path !== "/") router.push("/");
   } catch (err) {
     createError.value = err.message || "Unable to create session";
   }

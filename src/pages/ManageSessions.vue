@@ -345,7 +345,7 @@ async function shareLink(s) {
   error.value = "";
   try {
     const link = await api.createSessionShareLink(s.id);
-    shareUrl.value = `${link.appBaseUrl || window.location.origin}/q/${link.token}`;
+    shareUrl.value = `${link.appBaseUrl || "https://kue.arshii.net"}/q/${link.token}`;
     shareCopied.value = false;
     showShare.value = true;
   } catch (err) {

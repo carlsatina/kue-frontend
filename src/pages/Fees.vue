@@ -239,7 +239,7 @@ function openCreateSession() {
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 const BASE_URL = API_URL.replace(/\/api$/, "");
-const FRONTEND_BASE = window.location.origin;
+const FRONTEND_BASE = "https://kue.arshii.net";
 
 const balances = ref([]);
 const session = ref(null);

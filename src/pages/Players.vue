@@ -1715,7 +1715,7 @@ async function saveEditPairing() {
 async function openJoinLink() {
   if (!session.value) return;
   const link = await api.createSessionInviteLink(session.value.id);
-  joinLink.value = `${link.appBaseUrl || window.location.origin}/join/${link.token}`;
+  joinLink.value = `${link.appBaseUrl || "https://kue.arshii.net"}/join/${link.token}`;
   try {
     await navigator.clipboard.writeText(joinLink.value);
     joinLinkCopied.value = true;
@@ -1744,7 +1744,7 @@ function closeJoinLinkModal() {
 async function createQueueShareLink() {
   if (!session.value) return;
   const link = await api.createSessionShareLink(session.value.id);
-  queueShareLink.value = `${link.appBaseUrl || window.location.origin}/q/${link.token}`;
+  queueShareLink.value = `${link.appBaseUrl || "https://kue.arshii.net"}/q/${link.token}`;
   try {
     await navigator.clipboard.writeText(queueShareLink.value);
     queueCopied.value = true;
