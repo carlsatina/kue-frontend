@@ -377,7 +377,7 @@ async function shareSessionFeeLink() {
   if (!session.value) return;
   try {
     const link = await api.createSessionShareLink(session.value.id);
-    const url = `${FRONTEND_BASE}/fees/${link.token}`;
+    const url = `${link.appBaseUrl || FRONTEND_BASE}/fees/${link.token}`;
     await navigator.clipboard.writeText(url);
     linkCopied.value = true;
     setTimeout(() => { linkCopied.value = false; }, 2500);

@@ -268,7 +268,7 @@ export function useDashboard() {
       return;
     }
     const link = await api.createSessionShareLink(session.value.id);
-    inviteLink.value = `${window.location.origin}/q/${link.token}`;
+    inviteLink.value = `${link.appBaseUrl || window.location.origin}/q/${link.token}`;
     try {
       await navigator.clipboard.writeText(inviteLink.value);
       inviteCopied.value = true;
