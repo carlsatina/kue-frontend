@@ -295,6 +295,7 @@ const sessions = ref([]);
 const liveSessions = computed(() => sessions.value.filter((s) => s.status === "open"));
 const showGlobalLoadingModal = ref(false);
 let loadingTimer = null;
+let hideLoadingTimer = null;
 const activeSession = computed(() => {
   const selected = liveSessions.value.find((session) => session.id === selectedSessionId.value);
   return selected || liveSessions.value[0] || null;
@@ -459,6 +460,12 @@ watch(
   isReadingFromBackend,
   (isLoading) => {
     if (isLoading) {
+      // A new request started — cancel any pending hide so brief gaps
+      // between sequential requests don't flicker the modal off and on.
+      if (hideLoadingTimer) {
+        window.clearTimeout(hideLoadingTimer);
+        hideLoadingTimer = null;
+      }
       if (loadingTimer || showGlobalLoadingModal.value) return;
       loadingTimer = window.setTimeout(() => {
         showGlobalLoadingModal.value = true;
@@ -466,11 +473,18 @@ watch(
       }, 180);
       return;
     }
+    // No active requests. If the modal never showed, just cancel the pending show.
     if (loadingTimer) {
       window.clearTimeout(loadingTimer);
       loadingTimer = null;
     }
-    showGlobalLoadingModal.value = false;
+    if (!showGlobalLoadingModal.value || hideLoadingTimer) return;
+    // Debounce the hide so the counter momentarily reaching 0 between
+    // back-to-back requests keeps the modal up instead of flickering.
+    hideLoadingTimer = window.setTimeout(() => {
+      showGlobalLoadingModal.value = false;
+      hideLoadingTimer = null;
+    }, 220);
   },
   { immediate: true }
 );
@@ -499,6 +513,10 @@ onUnmounted(() => {
   if (loadingTimer) {
     window.clearTimeout(loadingTimer);
     loadingTimer = null;
+  }
+  if (hideLoadingTimer) {
+    window.clearTimeout(hideLoadingTimer);
+    hideLoadingTimer = null;
   }
   document.removeEventListener("sessions:updated", handleSessionsUpdated);
   document.removeEventListener("createSession:open", openCreateSession);

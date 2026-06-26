@@ -282,7 +282,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { TournamentBracket } from "vue3-tournament";
 import "vue3-tournament/style.css";
-import { api } from "../api.js";
+import { api, withLoadingScope } from "../api.js";
 import { loadManualTeams, saveManualTeams } from "../utils/teamBuilder.js";
 import { SEED_MATCH_ID, applySeedOrder, extractSeedOrder } from "../utils/seedOrder.js";
 import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.js";
@@ -396,7 +396,13 @@ const bracketData = computed(() => {
   };
 });
 
-async function load() {
+function load() {
+  // One logical loading operation across the sequential requests below,
+  // so the global loading modal stays continuous instead of flickering.
+  return withLoadingScope(loadImpl);
+}
+
+async function loadImpl() {
   error.value = "";
   try {
     let currentSession = null;

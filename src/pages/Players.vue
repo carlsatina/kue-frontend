@@ -571,7 +571,7 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { api } from "../api.js";
+import { api, withLoadingScope } from "../api.js";
 import { loadManualTeams } from "../utils/teamBuilder.js";
 import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.js";
 
@@ -1415,44 +1415,49 @@ function buildBalancedDoublesOrder(candidates, partnerMap = new Map()) {
   return [ids[a1], ids[a2], ids[b1], ids[b2]];
 }
 
-async function load() {
-  players.value = await api.listPlayers();
-  let currentSession = null;
-  if (selectedSessionId.value) {
-    try {
-      currentSession = await api.session(selectedSessionId.value);
-    } catch {
-      setSelectedSessionId("");
+function load() {
+  // Wrap the whole multi-step load as one logical loading operation so the
+  // global loading modal stays up continuously instead of flickering between
+  // the sequential requests below.
+  return withLoadingScope(async () => {
+    players.value = await api.listPlayers();
+    let currentSession = null;
+    if (selectedSessionId.value) {
+      try {
+        currentSession = await api.session(selectedSessionId.value);
+      } catch {
+        setSelectedSessionId("");
+      }
     }
-  }
-  if (!currentSession) {
-    try {
-      currentSession = await api.activeSession();
-    } catch {
-      currentSession = null;
+    if (!currentSession) {
+      try {
+        currentSession = await api.activeSession();
+      } catch {
+        currentSession = null;
+      }
+      if (currentSession?.id) setSelectedSessionId(currentSession.id);
     }
-    if (currentSession?.id) setSelectedSessionId(currentSession.id);
-  }
-  session.value = currentSession;
-  if (!currentSession) {
-    queueEntries.value = [];
-    sessionPlayers.value = [];
-    matches.value = [];
-    manualTeams.value = [];
-    selectedTeamIds.value = [];
-    return;
-  }
+    session.value = currentSession;
+    if (!currentSession) {
+      queueEntries.value = [];
+      sessionPlayers.value = [];
+      matches.value = [];
+      manualTeams.value = [];
+      selectedTeamIds.value = [];
+      return;
+    }
 
-  const [queueResult, playersResult, matchesResult] = await Promise.allSettled([
-    api.getQueue(currentSession.id),
-    api.sessionPlayers(currentSession.id),
-    api.matchHistory(currentSession.id)
-  ]);
+    const [queueResult, playersResult, matchesResult] = await Promise.allSettled([
+      api.getQueue(currentSession.id),
+      api.sessionPlayers(currentSession.id),
+      api.matchHistory(currentSession.id)
+    ]);
 
-  queueEntries.value = queueResult.status === "fulfilled" ? queueResult.value : [];
-  sessionPlayers.value = playersResult.status === "fulfilled" ? playersResult.value : [];
-  matches.value = matchesResult.status === "fulfilled" ? matchesResult.value : [];
-  manualTeams.value = sessionGameType.value === "doubles" ? loadManualTeams(currentSession.id) : [];
+    queueEntries.value = queueResult.status === "fulfilled" ? queueResult.value : [];
+    sessionPlayers.value = playersResult.status === "fulfilled" ? playersResult.value : [];
+    matches.value = matchesResult.status === "fulfilled" ? matchesResult.value : [];
+    manualTeams.value = sessionGameType.value === "doubles" ? loadManualTeams(currentSession.id) : [];
+  });
 }
 
 // Pull-to-refresh (mobile)

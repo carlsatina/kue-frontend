@@ -121,7 +121,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
-import { api } from "../api.js";
+import { api, withLoadingScope } from "../api.js";
 import { loadManualTeams, saveManualTeams } from "../utils/teamBuilder.js";
 import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.js";
 
@@ -160,7 +160,13 @@ const selectedTeamNames = computed(() => {
     .map((player) => player.name);
 });
 
-async function load() {
+function load() {
+  // One logical loading operation across the sequential requests below,
+  // so the global loading modal stays continuous instead of flickering.
+  return withLoadingScope(loadImpl);
+}
+
+async function loadImpl() {
   error.value = "";
   try {
     let currentSession = null;

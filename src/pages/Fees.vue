@@ -230,7 +230,7 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { api } from "../api.js";
+import { api, withLoadingScope } from "../api.js";
 import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.js";
 
 function openCreateSession() {
@@ -314,7 +314,14 @@ function formatDate(iso) {
   return new Date(iso).toLocaleString();
 }
 
-async function load({ silent = false } = {}) {
+function load(opts = {}) {
+  // Run the multi-step load as one logical loading operation so the global
+  // modal stays continuous instead of flickering between requests. Silent
+  // background refreshes intentionally skip the scope (no modal).
+  return opts.silent ? loadImpl(opts) : withLoadingScope(() => loadImpl(opts));
+}
+
+async function loadImpl({ silent = false } = {}) {
   const reqOptions = silent ? { showLoading: false } : undefined;
   try {
     let currentSession = null;

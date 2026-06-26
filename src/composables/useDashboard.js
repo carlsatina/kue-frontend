@@ -1,6 +1,6 @@
 import { onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { api } from "../api.js";
+import { api, withLoadingScope } from "../api.js";
 import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.js";
 
 export function useDashboard() {
@@ -53,7 +53,13 @@ export function useDashboard() {
 
   // ── Data loading ──────────────────────────────────────────────────────────
 
-  async function refresh() {
+  function refresh() {
+    // One logical loading operation across the sequential requests below,
+    // so the global loading modal stays continuous instead of flickering.
+    return withLoadingScope(refreshImpl);
+  }
+
+  async function refreshImpl() {
     try {
       let sessionData = null;
       if (selectedSessionId.value) {

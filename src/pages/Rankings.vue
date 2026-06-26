@@ -103,7 +103,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
-import { api } from "../api.js";
+import { api, withLoadingScope } from "../api.js";
 import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.js";
 
 function openCreateSession() {
@@ -145,7 +145,13 @@ const showRankToggle = computed(() => {
   return options.length > 1;
 });
 
-async function load() {
+function load() {
+  // One logical loading operation across the sequential requests below,
+  // so the global loading modal stays continuous instead of flickering.
+  return withLoadingScope(loadImpl);
+}
+
+async function loadImpl() {
   try {
     let currentSession = null;
     if (selectedSessionId.value) {

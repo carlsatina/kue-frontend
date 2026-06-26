@@ -13,6 +13,19 @@ function withLoading(promise, enabled) {
 
 export const isReadingFromBackend = computed(() => activeReadRequests.value > 0);
 
+// Runs `fn` as a single logical loading operation. Holds the read counter at a
+// floor of +1 for the whole duration, so multi-step loads (several sequential
+// requests) register as one continuous loading state instead of the counter
+// dipping to 0 between requests and flickering the global loading modal.
+export async function withLoadingScope(fn) {
+  activeReadRequests.value += 1;
+  try {
+    return await fn();
+  } finally {
+    activeReadRequests.value = Math.max(0, activeReadRequests.value - 1);
+  }
+}
+
 async function request(path, options = {}) {
   const { showLoading, ...requestOptions } = options;
   const method = (requestOptions.method || "GET").toUpperCase();
