@@ -33,6 +33,8 @@
               <div class="session-card-titles">
                 <h3 class="session-card-name">{{ s.name }}</h3>
                 <div class="session-card-meta">{{ formatMeta(s) }}</div>
+                <div v-if="formatSessionLocation(s)" class="session-card-line">📍 {{ formatSessionLocation(s) }}</div>
+                <div v-if="formatSessionSchedule(s)" class="session-card-line">🕑 {{ formatSessionSchedule(s) }}</div>
               </div>
               <span class="status-pill" :class="s.status">{{ statusLabel(s.status) }}</span>
             </div>
@@ -103,6 +105,8 @@
               <div class="session-card-titles">
                 <h3 class="session-card-name">{{ s.name }}</h3>
                 <div class="session-card-meta">{{ formatMeta(s) }}</div>
+                <div v-if="formatSessionLocation(s)" class="session-card-line">📍 {{ formatSessionLocation(s) }}</div>
+                <div v-if="formatSessionSchedule(s)" class="session-card-line">🕑 {{ formatSessionSchedule(s) }}</div>
               </div>
               <span class="status-pill closed">Closed</span>
             </div>
@@ -133,18 +137,34 @@
           <input class="input" v-model="editName" />
         </div>
         <div class="field">
-          <label class="field-label">Game type</label>
-          <select class="input" v-model="editGameType">
-            <option value="doubles">Doubles</option>
-            <option value="singles">Singles</option>
-          </select>
+          <label class="field-label">Location</label>
+          <input class="input" v-model="editLocation" placeholder="e.g. Court 1 Sports Hall" />
         </div>
-        <div class="field">
-          <label class="field-label">Session mode</label>
-          <select class="input" v-model="editMode">
-            <option value="usual">Usual</option>
-            <option value="tournament">Tournament</option>
-          </select>
+        <div class="field-grid two">
+          <div class="field">
+            <label class="field-label">Start time</label>
+            <input class="input" v-model="editStartsAt" type="datetime-local" />
+          </div>
+          <div class="field">
+            <label class="field-label">End time</label>
+            <input class="input" v-model="editEndsAt" type="datetime-local" />
+          </div>
+        </div>
+        <div class="field-grid two">
+          <div class="field">
+            <label class="field-label">Game type</label>
+            <select class="input" v-model="editGameType">
+              <option value="doubles">Doubles</option>
+              <option value="singles">Singles</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label">Session mode</label>
+            <select class="input" v-model="editMode">
+              <option value="usual">Usual</option>
+              <option value="tournament">Tournament</option>
+            </select>
+          </div>
         </div>
         <div class="field">
           <label class="field-label">Fee amount</label>
@@ -158,6 +178,10 @@
           <label class="field-label">Payment deadline</label>
           <input class="input" v-model="editPaymentDeadline" type="datetime-local" />
         </div>
+        <div class="field">
+          <label class="field-label">Join limits</label>
+          <p class="field-hint">Max players allowed to join via the share link. <strong>Regular</strong> = returning players, <strong>New joiner</strong> = first-timers. Set 0 for no limit.</p>
+        </div>
         <div class="join-limits-row">
           <div class="field field-inline">
             <label class="field-label">Regular</label>
@@ -169,7 +193,7 @@
           </div>
         </div>
         <div v-if="editError" class="notice danger">{{ editError }}</div>
-        <div class="grid two">
+        <div class="field-grid two create-actions">
           <button class="button ghost" type="button" @click="closeEdit">Cancel</button>
           <button class="button" type="button" :disabled="editSaving" @click="saveEdit">Save</button>
         </div>
@@ -244,6 +268,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { api } from "../api.js";
 import { selectedSessionId, setSelectedSessionId, setPendingSessionId } from "../state/sessionStore.js";
+import { formatSessionSchedule, formatSessionLocation } from "../utils/sessionSchedule.js";
 
 const router = useRouter();
 const sessions = ref([]);
@@ -258,6 +283,9 @@ const pastSessions = computed(() => sessions.value.filter((s) => s.status === "c
 const showEdit = ref(false);
 const editTarget = ref(null);
 const editName = ref("");
+const editLocation = ref("");
+const editStartsAt = ref("");
+const editEndsAt = ref("");
 const editGameType = ref("doubles");
 const editMode = ref("usual");
 const editFeeAmount = ref(0);
@@ -298,6 +326,9 @@ function openEdit(s) {
   editTarget.value = s;
   editError.value = "";
   editName.value = s.name || "";
+  editLocation.value = s.location || "";
+  editStartsAt.value = toLocalInput(s.startsAt);
+  editEndsAt.value = toLocalInput(s.endsAt);
   editGameType.value = s.gameType || "doubles";
   editMode.value = s.mode || "usual";
   editFeeAmount.value = Number(s.feeAmount || 0);
@@ -321,6 +352,9 @@ async function saveEdit() {
   try {
     await api.updateSession(editTarget.value.id, {
       name: editName.value,
+      location: editLocation.value.trim() || null,
+      startsAt: editStartsAt.value ? new Date(editStartsAt.value).toISOString() : null,
+      endsAt: editEndsAt.value ? new Date(editEndsAt.value).toISOString() : null,
       gameType: editGameType.value,
       mode: editMode.value,
       feeAmount: Number(editFeeAmount.value || 0),
@@ -609,6 +643,13 @@ onMounted(load);
 .session-card-meta {
   margin-top: 3px;
   font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.session-card-line {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--ink-soft);
 }
 

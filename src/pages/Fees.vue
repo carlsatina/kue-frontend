@@ -34,6 +34,10 @@
         </div>
         <button
           class="button ghost button-compact"
+          @click="openInfo"
+        >View</button>
+        <button
+          class="button ghost button-compact"
           :class="{ copied: linkCopied }"
           @click="shareSessionFeeLink"
         >{{ linkCopied ? 'Link Copied!' : 'Share Fee Link' }}</button>
@@ -140,6 +144,22 @@
         <button class="button" @click="saveEditFee">Save</button>
         <button class="button ghost" @click="closeEditFee">Cancel</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Session info / shareable poster modal -->
+  <div v-if="showInfo" class="modal-backdrop" @click.self="closeInfo">
+    <div class="modal-card info-modal">
+      <div class="info-modal-head">
+        <h3>Session Info</h3>
+        <button
+          class="button ghost button-compact"
+          :class="{ copied: infoCopied }"
+          @click="copyInfo"
+        >{{ infoCopied ? 'Copied!' : 'Copy' }}</button>
+      </div>
+      <pre class="info-poster">{{ posterText }}</pre>
+      <button class="button ghost" @click="closeInfo">Close</button>
     </div>
   </div>
 
@@ -260,6 +280,9 @@ const isPinching = ref(false);
 let pinchStartDist = 0;
 let pinchStartScale = 1;
 const linkCopied = ref(false);
+const showInfo = ref(false);
+const infoCopied = ref(false);
+let infoCopyTimer = null;
 const refreshing = ref(false);
 const startY = ref(0);
 const isPulling = ref(false);
@@ -375,7 +398,7 @@ async function onTouchEnd(e) {
 // True while any modal/action is open — pause auto-refresh so data doesn't
 // shift under the admin mid-task.
 const actionInProgress = computed(
-  () => showPayment.value || showEditFee.value || showPendingModal.value || Boolean(proofLightbox.value)
+  () => showPayment.value || showEditFee.value || showPendingModal.value || showInfo.value || Boolean(proofLightbox.value)
 );
 
 // ── Share session fee link ───────────────────────────────────────────────────
@@ -564,6 +587,83 @@ function formatMethod(method) {
 function formatAmount(value) {
   if (!Number.isFinite(value)) return "0";
   return value.toLocaleString();
+}
+
+// ── Session info poster ────────────────────────────────────────────────────────
+
+function posterClock(d, withMeridiem) {
+  let hr = d.getHours() % 12;
+  if (hr === 0) hr = 12;
+  let s = String(hr);
+  const mins = d.getMinutes();
+  if (mins) s += `:${String(mins).padStart(2, "0")}`;
+  if (withMeridiem) s += d.getHours() >= 12 ? "PM" : "AM";
+  return s;
+}
+
+const posterDateTime = computed(() => {
+  const start = session.value?.startsAt ? new Date(session.value.startsAt) : null;
+  const end = session.value?.endsAt ? new Date(session.value.endsAt) : null;
+  const base = start || end;
+  if (!base || Number.isNaN(base.getTime())) return "";
+  const dateStr = base
+    .toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })
+    .toUpperCase();
+  if (start && end && !Number.isNaN(end.getTime())) {
+    const sameMeridiem = (start.getHours() >= 12) === (end.getHours() >= 12);
+    const timeStr = `${posterClock(start, !sameMeridiem)}-${posterClock(end, true)}`;
+    return `${dateStr} | ${timeStr}`;
+  }
+  return `${dateStr} | ${posterClock(base, true)}`;
+});
+
+const posterText = computed(() => {
+  const s = session.value;
+  if (!s) return "";
+  const lines = [];
+  lines.push(`🏸${(s.name || "").toUpperCase()}`);
+  if (posterDateTime.value) lines.push(`🗓️${posterDateTime.value}`);
+  if (s.location) lines.push(`📍${s.location.toUpperCase()}`);
+  lines.push("");
+  lines.push(`🧾GAME FEE: ₱${formatAmount(Number(s.feeAmount || 0))}`);
+  lines.push("");
+  const mainlist = balances.value.filter((b) => b.status !== "waitlisted");
+  const waitlist = balances.value.filter((b) => b.status === "waitlisted");
+  lines.push(`✅ MAINLIST (${mainlist.length}):`);
+  mainlist.forEach((b, i) => {
+    const paid = Number(b.remaining || 0) <= 0;
+    lines.push(`${i + 1}. ${b.player.nickname || b.player.fullName}${paid ? " ✅" : ""}`);
+  });
+  lines.push("❌end-of-list❌");
+  if (waitlist.length) {
+    lines.push("");
+    lines.push(`⏳ WAITLIST (${waitlist.length}):`);
+    waitlist.forEach((b, i) => {
+      lines.push(`${i + 1}. ${b.player.nickname || b.player.fullName}`);
+    });
+  }
+  return lines.join("\n");
+});
+
+function openInfo() {
+  if (!session.value) return;
+  infoCopied.value = false;
+  showInfo.value = true;
+}
+
+function closeInfo() {
+  showInfo.value = false;
+}
+
+async function copyInfo() {
+  try {
+    await navigator.clipboard.writeText(posterText.value);
+    infoCopied.value = true;
+    if (infoCopyTimer) clearTimeout(infoCopyTimer);
+    infoCopyTimer = setTimeout(() => { infoCopied.value = false; }, 2000);
+  } catch {
+    /* clipboard denied */
+  }
 }
 
 watch(selectedSessionId, () => load());
@@ -855,6 +955,40 @@ onUnmounted(() => {
   color: #fff;
 }
 
+
+/* ── Session info poster modal ───────────────────────────────────── */
+.info-modal {
+  max-width: 460px;
+  width: 92vw;
+}
+
+.info-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.info-modal-head h3 {
+  margin: 0;
+}
+
+.info-poster {
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  max-height: 56vh;
+  overflow-y: auto;
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 
 /* ── Proof attach area in admin modal ────────────────────────────── */
 .hidden-file-input { display: none; }

@@ -13,6 +13,10 @@
           <div>
             <div class="pq-eyebrow">Live Queue</div>
             <h1 class="pq-title">{{ data.session?.name || 'Queue' }}</h1>
+            <div v-if="sessionLocation || sessionSchedule" class="pq-meta">
+              <span v-if="sessionLocation">📍 {{ sessionLocation }}</span>
+              <span v-if="sessionSchedule">🕑 {{ sessionSchedule }}</span>
+            </div>
           </div>
           <div class="pq-live-group">
             <div class="pq-live-pill">
@@ -271,9 +275,12 @@ import "vue3-tournament/style.css";
 import { api } from "../api.js";
 import { useRoute } from "vue-router";
 import CourtFloor from "../components/CourtFloor.vue";
+import { formatSessionSchedule, formatSessionLocation } from "../utils/sessionSchedule.js";
 
 const route = useRoute();
 const data = ref({});
+const sessionLocation = computed(() => formatSessionLocation(data.value.session));
+const sessionSchedule = computed(() => formatSessionSchedule(data.value.session));
 const rankedPlayers = ref([]);
 const totalPlayers = ref(0);
 const rankMode = ref("players");
@@ -1306,6 +1313,16 @@ onUnmounted(() => {
   font-weight: 800;
   margin: 0;
   line-height: 1.2;
+}
+
+.pq-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.85;
 }
 
 .pq-live-group {

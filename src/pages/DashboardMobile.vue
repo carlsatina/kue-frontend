@@ -6,6 +6,18 @@
   </div>
   <div class="dm">
 
+    <!-- ── Session meta ─────────────────────────────────────────── -->
+    <div v-if="sessionLocation || sessionSchedule" class="session-meta">
+      <div v-if="sessionLocation" class="session-meta-row">
+        <svg class="session-meta-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-10.2A6.5 6.5 0 0 1 12 4a6.5 6.5 0 0 1 6.5 6.8C18.5 15.4 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="10.5" r="2.3" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        <span>{{ sessionLocation }}</span>
+      </div>
+      <div v-if="sessionSchedule" class="session-meta-row">
+        <svg class="session-meta-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 9.5V13l2.5 2M9 2.5h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>{{ sessionSchedule }}</span>
+      </div>
+    </div>
+
     <!-- ── Courts ──────────────────────────────────────────────── -->
     <div class="section">
       <div class="section-row">
@@ -186,13 +198,14 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useDashboard } from "../composables/useDashboard.js";
+import { formatSessionSchedule, formatSessionLocation } from "../utils/sessionSchedule.js";
 import CourtFloor from "../components/CourtFloor.vue";
 
 const {
   refresh,
-  courts, error,
+  session, courts, error,
   showAddCourt, newCourtName, newCourtNotes, addCourtError,
   showEditCourt, editCourtName, editCourtNotes, editCourtError,
   showDeleteCourt, deleteCourtName, deleteCourtError,
@@ -207,6 +220,9 @@ const {
   teamNames, elapsedTime,
   courtStatusLabel, courtDotClass,
 } = useDashboard();
+
+const sessionLocation = computed(() => formatSessionLocation(session.value));
+const sessionSchedule = computed(() => formatSessionSchedule(session.value));
 
 // Pull-to-refresh (mobile)
 const refreshing = ref(false);
@@ -286,6 +302,33 @@ function courtState(court) {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+/* ── Session meta ─────────────────────────────────── */
+.session-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+
+.session-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.session-meta-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--blue);
 }
 
 /* ── Section ──────────────────────────────────────── */

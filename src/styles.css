@@ -2777,6 +2777,13 @@ html.modal-open body {
   color: var(--ink-soft);
 }
 
+.field-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
 .field-inline {
   display: flex;
   align-items: center;
@@ -2802,6 +2809,19 @@ html.modal-open body {
 
 .session-compact .subtitle {
   font-size: 12px;
+}
+
+.field-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.field-grid.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.create-actions {
+  margin-top: 4px;
 }
 
 .session-create {

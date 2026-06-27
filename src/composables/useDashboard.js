@@ -395,7 +395,7 @@ export function useDashboard() {
 
   return {
     // State
-    courts, error,
+    session, courts, error,
     // Court add
     showAddCourt, newCourtName, newCourtNotes, addCourtError,
     // Court edit

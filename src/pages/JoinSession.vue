@@ -8,6 +8,10 @@
       <div class="subtitle">Session</div>
       <strong>{{ session?.name }}</strong>
       <div class="subtitle">{{ session?.status }}</div>
+      <div v-if="sessionLocation || sessionSchedule" class="join-meta">
+        <span v-if="sessionLocation">📍 {{ sessionLocation }}</span>
+        <span v-if="sessionSchedule">🕑 {{ sessionSchedule }}</span>
+      </div>
 
       <!-- Step 1: name -->
       <template v-if="step === 'form'">
@@ -121,9 +125,12 @@
 import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { api } from "../api.js";
+import { formatSessionSchedule, formatSessionLocation } from "../utils/sessionSchedule.js";
 
 const route = useRoute();
 const session = ref(null);
+const sessionLocation = computed(() => formatSessionLocation(session.value));
+const sessionSchedule = computed(() => formatSessionSchedule(session.value));
 const loading = ref(true);
 const error = ref("");
 const success = ref(false);
@@ -281,3 +288,14 @@ function closePlayers() {
 
 onMounted(load);
 </script>
+
+<style scoped>
+.join-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+</style>

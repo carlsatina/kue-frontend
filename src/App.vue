@@ -3,7 +3,7 @@
     <header v-if="!route.meta.hideHeader" class="header">
       <div class="brand">
         <img src="./assets/KuePro.png" alt="KuePro" class="brand-logo" />
-        <span v-if="showProfile" class="brand-session">{{ activeSession ? activeSession.name : "No active session" }}</span>
+        <span v-if="showProfile" class="brand-session">{{ brandSessionLabel }}</span>
       </div>
       <!-- Desktop nav lives inside the header -->
       <div v-if="showNav" class="header-center">
@@ -164,7 +164,7 @@
           >
             <span class="switch-dot" aria-hidden="true"></span>
             <span class="switch-info">
-              <span class="switch-name">{{ s.name }}</span>
+              <span class="switch-name">{{ s.name }}<span v-if="s.location?.trim()" class="switch-location"> @ 📍{{ s.location.trim() }}</span></span>
               <span class="switch-sub">{{ s.mode }} · {{ s.gameType }}</span>
             </span>
             <span v-if="s.id === selectedSessionId" class="switch-current">Current</span>
@@ -184,18 +184,34 @@
           <input class="input" v-model="newSessionName" />
         </div>
         <div class="field">
-          <label class="field-label">Game type</label>
-          <select class="input" v-model="newGameType">
-            <option value="doubles">Doubles</option>
-            <option value="singles">Singles</option>
-          </select>
+          <label class="field-label">Location</label>
+          <input class="input" v-model="newLocation" placeholder="e.g. Court 1 Sports Hall" />
         </div>
-        <div class="field">
-          <label class="field-label">Session mode</label>
-          <select class="input" v-model="newSessionMode">
-            <option value="usual">Usual</option>
-            <option value="tournament">Tournament</option>
-          </select>
+        <div class="field-grid two">
+          <div class="field">
+            <label class="field-label">Start time</label>
+            <input class="input" v-model="newStartsAt" type="datetime-local" />
+          </div>
+          <div class="field">
+            <label class="field-label">End time</label>
+            <input class="input" v-model="newEndsAt" type="datetime-local" />
+          </div>
+        </div>
+        <div class="field-grid two">
+          <div class="field">
+            <label class="field-label">Game type</label>
+            <select class="input" v-model="newGameType">
+              <option value="doubles">Doubles</option>
+              <option value="singles">Singles</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label">Session mode</label>
+            <select class="input" v-model="newSessionMode">
+              <option value="usual">Usual</option>
+              <option value="tournament">Tournament</option>
+            </select>
+          </div>
         </div>
         <div class="field">
           <label class="field-label">Fee amount</label>
@@ -209,6 +225,10 @@
           <label class="field-label">Payment deadline</label>
           <input class="input" v-model="newPaymentDeadline" type="datetime-local" />
         </div>
+        <div class="field">
+          <label class="field-label">Join limits</label>
+          <p class="field-hint">Max players allowed to join via the share link. <strong>Regular</strong> = returning players, <strong>New joiner</strong> = first-timers. Set 0 for no limit.</p>
+        </div>
         <div class="join-limits-row">
           <div class="field field-inline">
             <label class="field-label">Regular</label>
@@ -220,7 +240,7 @@
           </div>
         </div>
         <div v-if="createError" class="notice">{{ createError }}</div>
-        <div class="grid two">
+        <div class="field-grid two create-actions">
           <button class="button ghost" @click="closeCreateSession">Cancel</button>
           <button class="button" @click="submitCreateSession">Create Session</button>
         </div>
@@ -239,6 +259,9 @@ import GameLoadingModal from "./components/GameLoadingModal.vue";
 // Create session modal state
 const showCreateSession = ref(false);
 const newSessionName = ref("Evening Open Play");
+const newLocation = ref("");
+const newStartsAt = ref("");
+const newEndsAt = ref("");
 const newGameType = ref("doubles");
 const newSessionMode = ref("usual");
 const newFeeAmount = ref(100);
@@ -299,6 +322,11 @@ let hideLoadingTimer = null;
 const activeSession = computed(() => {
   const selected = liveSessions.value.find((session) => session.id === selectedSessionId.value);
   return selected || liveSessions.value[0] || null;
+});
+const brandSessionLabel = computed(() => {
+  if (!activeSession.value) return "No active session";
+  const location = activeSession.value.location?.trim();
+  return location ? `${activeSession.value.name} @ 📍${location}` : activeSession.value.name;
 });
 const showTeamsNav = computed(() => {
   if (!activeSession.value) return true;
@@ -380,6 +408,9 @@ async function submitCreateSession() {
   try {
     const created = await api.createSession({
       name: newSessionName.value,
+      location: newLocation.value.trim() || undefined,
+      startsAt: newStartsAt.value ? new Date(newStartsAt.value).toISOString() : undefined,
+      endsAt: newEndsAt.value ? new Date(newEndsAt.value).toISOString() : undefined,
       gameType: newGameType.value,
       mode: newSessionMode.value,
       feeMode: "flat",
@@ -790,6 +821,10 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--ink-soft);
   text-transform: capitalize;
+}
+.switch-location {
+  font-weight: 400;
+  color: var(--ink-soft);
 }
 .switch-current {
   font-size: 11px;

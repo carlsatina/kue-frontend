@@ -22,6 +22,10 @@
           </button>
           <div class="pf-session">{{ data.session.name }}</div>
           <h2 class="pf-title">Session Fees</h2>
+          <div v-if="sessionLocation || sessionSchedule" class="pf-meta">
+            <span v-if="sessionLocation">📍 {{ sessionLocation }}</span>
+            <span v-if="sessionSchedule">🕑 {{ sessionSchedule }}</span>
+          </div>
           <div class="pf-chips">
             <span class="pf-chip outstanding" v-if="outstandingCount > 0">{{ outstandingCount }} outstanding</span>
             <span class="pf-chip waitlisted" v-if="waitlistedCount > 0">{{ waitlistedCount }} waitlisted</span>
@@ -167,9 +171,12 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { api } from "../api.js";
+import { formatSessionSchedule, formatSessionLocation } from "../utils/sessionSchedule.js";
 
 const route = useRoute();
 const data = ref(null);
+const sessionLocation = computed(() => formatSessionLocation(data.value?.session));
+const sessionSchedule = computed(() => formatSessionSchedule(data.value?.session));
 const loading = ref(true);
 const refreshing = ref(false);
 const startY = ref(0);
@@ -480,6 +487,17 @@ onUnmounted(() => {
   font-weight: 800;
   color: var(--ink);
   margin: 0;
+}
+
+.pf-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 14px;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
 }
 
 .pf-chips { display: flex; gap: 8px; flex-wrap: wrap; }

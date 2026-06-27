@@ -7,6 +7,16 @@
 
       <!-- Courts grid -->
       <div class="desk-main">
+        <div v-if="sessionLocation || sessionSchedule" class="session-meta">
+          <span v-if="sessionLocation" class="session-meta-row">
+            <svg class="session-meta-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-10.2A6.5 6.5 0 0 1 12 4a6.5 6.5 0 0 1 6.5 6.8C18.5 15.4 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="10.5" r="2.3" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            {{ sessionLocation }}
+          </span>
+          <span v-if="sessionSchedule" class="session-meta-row">
+            <svg class="session-meta-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 9.5V13l2.5 2M9 2.5h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            {{ sessionSchedule }}
+          </span>
+        </div>
         <div class="panel-head">
           <span class="panel-title">Courts</span>
           <button class="link-btn" @click="showAddCourt = true">+ Add court</button>
@@ -144,11 +154,13 @@
 </template>
 
 <script setup>
+import { computed } from "vue";
 import { useDashboard } from "../composables/useDashboard.js";
+import { formatSessionSchedule, formatSessionLocation } from "../utils/sessionSchedule.js";
 import CourtFloor from "../components/CourtFloor.vue";
 
 const {
-  courts, error,
+  session, courts, error,
   showAddCourt, newCourtName, newCourtNotes, addCourtError,
   showEditCourt, editCourtName, editCourtNotes, editCourtError,
   showDeleteCourt, deleteCourtName, deleteCourtError,
@@ -162,6 +174,9 @@ const {
   teamNames, elapsedTime,
   courtStatusLabel, courtDotClass,
 } = useDashboard();
+
+const sessionLocation = computed(() => formatSessionLocation(session.value));
+const sessionSchedule = computed(() => formatSessionSchedule(session.value));
 
 function courtBadgeClass(court) {
   if (court.status === "maintenance") return "badge-warning";
@@ -199,6 +214,32 @@ function courtState(court) {
   grid-template-columns: minmax(0, 1fr);
   gap: 24px;
   align-items: start;
+}
+
+/* ── Session meta ─────────────────────────────────── */
+.session-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.session-meta-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-soft);
+}
+.session-meta-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--blue);
 }
 
 /* ── Panel head ───────────────────────────────────── */
