@@ -1,6 +1,7 @@
 import { onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { api, withLoadingScope } from "../api.js";
+import { track } from "../utils/analytics.js";
 import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.js";
 
 export function useDashboard() {
@@ -248,6 +249,7 @@ export function useDashboard() {
         payload.score = score;
       }
       await api.endMatch(session.value.id, payload);
+      track("match-ended");
       closeEndMatch();
       await refresh();
     } catch (err) {
@@ -274,6 +276,7 @@ export function useDashboard() {
       return;
     }
     const link = await api.createSessionShareLink(session.value.id);
+    track("share-link-created", { from: "dashboard", type: "queue" });
     inviteLink.value = `${link.appBaseUrl || "https://kue.arshii.net"}/q/${link.token}`;
     try {
       await navigator.clipboard.writeText(inviteLink.value);

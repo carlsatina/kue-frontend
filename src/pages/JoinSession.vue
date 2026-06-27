@@ -125,6 +125,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { api } from "../api.js";
+import { track } from "../utils/analytics.js";
 import { formatSessionSchedule, formatSessionLocation } from "../utils/sessionSchedule.js";
 
 const route = useRoute();
@@ -220,6 +221,7 @@ async function submit() {
       fullName: fullName.value.trim(),
       newPlayer: newPlayer.value
     });
+    track("join-session", { waitlisted: Boolean(res.waitlisted), needsPayment: Boolean(res.canPay) });
     pendingPlayerId.value = res.player.id;
     joinFee.value = Number(res.fee || 0);
     deadlineText.value = formatDeadline(res.paymentDeadline);

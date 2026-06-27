@@ -251,6 +251,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { api, withLoadingScope } from "../api.js";
+import { track } from "../utils/analytics.js";
 import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.js";
 
 function openCreateSession() {
@@ -407,6 +408,7 @@ async function shareSessionFeeLink() {
   if (!session.value) return;
   try {
     const link = await api.createSessionShareLink(session.value.id);
+    track("share-link-created", { from: "fees", type: "fees" });
     const url = `${link.appBaseUrl || FRONTEND_BASE}/fees/${link.token}`;
     await navigator.clipboard.writeText(url);
     linkCopied.value = true;
@@ -464,6 +466,7 @@ async function record(method) {
     },
     proofFile.value || undefined
   );
+  track("payment-recorded", { method });
   closePayment();
   await load();
 }
@@ -489,6 +492,7 @@ async function confirmPayment() {
   pendingError.value = "";
   try {
     await api.confirmPayment(session.value.id, pendingTarget.value.pendingPayment.id);
+    track("payment-confirmed");
     closePendingModal();
     await load();
   } catch (err) {

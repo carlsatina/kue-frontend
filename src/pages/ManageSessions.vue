@@ -267,6 +267,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { api } from "../api.js";
+import { track } from "../utils/analytics.js";
 import { selectedSessionId, setSelectedSessionId, setPendingSessionId } from "../state/sessionStore.js";
 import { formatSessionSchedule, formatSessionLocation } from "../utils/sessionSchedule.js";
 
@@ -379,6 +380,7 @@ async function shareLink(s) {
   error.value = "";
   try {
     const link = await api.createSessionShareLink(s.id);
+    track("share-link-created", { from: "manage", type: "queue" });
     shareUrl.value = `${link.appBaseUrl || "https://kue.arshii.net"}/q/${link.token}`;
     shareCopied.value = false;
     showShare.value = true;
@@ -431,6 +433,7 @@ async function openOne(s) {
   error.value = "";
   try {
     await api.openSession(s.id);
+    track("session-opened");
     setPendingSessionId(s.id);
     await load();
     notifyHeader();
@@ -462,6 +465,7 @@ async function confirmClose() {
   closeError.value = "";
   try {
     await api.closeSession(s.id);
+    track("session-closed");
     showCloseConfirm.value = false;
     closeTarget.value = null;
     await load();

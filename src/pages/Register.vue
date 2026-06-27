@@ -97,6 +97,7 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { api } from "../api.js";
+import { track } from "../utils/analytics.js";
 import GameLoadingModal from "../components/GameLoadingModal.vue";
 
 const router = useRouter();
@@ -123,6 +124,7 @@ async function handleRegister() {
       password: password.value,
       fullName: fullName.value
     });
+    track("register");
     router.push({ path: "/check-email", query: { email: data.email || email.value } });
   } catch (err) {
     error.value = err.message;

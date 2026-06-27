@@ -233,6 +233,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { api } from "../api.js";
+import { track } from "../utils/analytics.js";
 import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.js";
 
 const route = useRoute();
@@ -467,6 +468,7 @@ async function confirmCheckin(sessionObj) {
   const player = checkinTarget.value;
   try {
     await api.checkinPlayer(player.id, { sessionId: sessionObj.id });
+    track("player-checkin", { source: "team" });
     await loadSessionPlayers();
     closeCheckinModal();
     triggerToast(`${player.nickname || player.fullName} checked in to ${sessionObj.name}.`);

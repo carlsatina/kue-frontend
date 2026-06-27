@@ -572,6 +572,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { api, withLoadingScope } from "../api.js";
+import { track } from "../utils/analytics.js";
 import { loadManualTeams } from "../utils/teamBuilder.js";
 import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.js";
 
@@ -1493,6 +1494,7 @@ async function addPlayer() {
     const created = await api.createPlayer({ fullName: fullName.value.trim(), skillLevel: skillLevel.value });
     if (session.value?.id && sessionIsOpen.value) {
       await api.checkinPlayer(created.id, { sessionId: session.value.id });
+      track("player-checkin", { source: "add" });
     }
     fullName.value = "";
     await load();
@@ -1606,6 +1608,7 @@ async function assignMatch(match, court) {
     teams: match.teamIds,
     entryIds: match.entryIds
   });
+  track("match-started", { matchType: match.matchType });
   await load();
 }
 
@@ -1720,6 +1723,7 @@ async function saveEditPairing() {
 async function openJoinLink() {
   if (!session.value) return;
   const link = await api.createSessionInviteLink(session.value.id);
+  track("invite-link-created", { from: "players" });
   joinLink.value = `${link.appBaseUrl || "https://kue.arshii.net"}/join/${link.token}`;
   try {
     await navigator.clipboard.writeText(joinLink.value);
@@ -1749,6 +1753,7 @@ function closeJoinLinkModal() {
 async function createQueueShareLink() {
   if (!session.value) return;
   const link = await api.createSessionShareLink(session.value.id);
+  track("share-link-created", { from: "players", type: "queue" });
   queueShareLink.value = `${link.appBaseUrl || "https://kue.arshii.net"}/q/${link.token}`;
   try {
     await navigator.clipboard.writeText(queueShareLink.value);
@@ -2035,6 +2040,7 @@ async function enqueueSelectedPlayers(order = selectedIds.value) {
       await api.enqueue(session.value.id, { type: "singles", playerIds: [playerId] });
     }
   }
+  track("queue-add", { kind: "players", gameType: sessionGameType.value, count: order.length });
   selectedIds.value = [];
   await load();
 }
@@ -2050,6 +2056,7 @@ async function enqueueSelectedTeams(teamIds = selectedTeamIds.value) {
     if (!team.memberIds || team.memberIds.length < 2) continue;
     await api.enqueue(session.value.id, { type: "doubles", playerIds: team.memberIds });
   }
+  track("queue-add", { kind: "teams", count: teams.length });
   selectedTeamIds.value = [];
   await load();
 }

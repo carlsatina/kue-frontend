@@ -253,6 +253,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { api, isReadingFromBackend } from "./api.js";
+import { track } from "./utils/analytics.js";
 import { pendingSessionId, selectedSessionId, setPendingSessionId, setSelectedSessionId } from "./state/sessionStore.js";
 import GameLoadingModal from "./components/GameLoadingModal.vue";
 
@@ -421,6 +422,7 @@ async function submitCreateSession() {
       newJoinerLimit: Math.max(0, Number(newJoinerLimit.value) || 0),
     });
     await api.openSession(created.id);
+    track("session-created", { mode: newSessionMode.value, gameType: newGameType.value });
     setPendingSessionId(created.id);
     showCreateSession.value = false;
     await loadSessions();

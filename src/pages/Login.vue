@@ -70,6 +70,7 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { api } from "../api.js";
+import { track } from "../utils/analytics.js";
 import GameLoadingModal from "../components/GameLoadingModal.vue";
 
 const router = useRouter();
@@ -86,6 +87,7 @@ async function handleLogin() {
   try {
     const data = await api.login({ email: email.value, password: password.value });
     localStorage.setItem("token", data.token);
+    track("login");
     window.dispatchEvent(new Event("auth:changed"));
     router.push("/");
   } catch (err) {
