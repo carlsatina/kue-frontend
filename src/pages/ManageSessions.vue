@@ -84,9 +84,6 @@
               >
                 Edit
               </button>
-              <button v-if="s.status === 'open'" class="link-action" type="button" :disabled="busyId === s.id" @click="shareLink(s)">
-                Share Link
-              </button>
             </div>
           </article>
         </div>
@@ -200,21 +197,6 @@
       </div>
     </div>
 
-    <!-- Share link modal -->
-    <div v-if="showShare" class="modal-backdrop" @click.self="closeShare">
-      <div class="modal-card">
-        <h3>Session Share Link</h3>
-        <div class="subtitle">Share this link so players can view the live queue and games.</div>
-        <div class="share-link">
-          <input class="input" readonly :value="shareUrl" />
-          <button class="button ghost button-compact" :class="{ active: shareCopied }" type="button" @click="copyShare">
-            {{ shareCopied ? "Copied" : "Copy" }}
-          </button>
-        </div>
-        <button class="button ghost" type="button" @click="closeShare">Close</button>
-      </div>
-    </div>
-
     <!-- Close session confirmation modal -->
     <transition name="confirm-pop">
       <div v-if="showCloseConfirm" class="modal-backdrop" @click.self="cancelClose">
@@ -309,12 +291,6 @@ const deleteTarget = ref(null);
 const deleteError = ref("");
 const deleting = ref(false);
 
-// Share link modal
-const showShare = ref(false);
-const shareUrl = ref("");
-const shareCopied = ref(false);
-let shareCopyTimer = null;
-
 function toLocalInput(iso) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -373,38 +349,6 @@ async function saveEdit() {
   } finally {
     editSaving.value = false;
   }
-}
-
-async function shareLink(s) {
-  busyId.value = s.id;
-  error.value = "";
-  try {
-    const link = await api.createSessionShareLink(s.id);
-    track("share-link-created", { from: "manage", type: "queue" });
-    shareUrl.value = `${link.appBaseUrl || "https://kue.arshii.net"}/q/${link.token}`;
-    shareCopied.value = false;
-    showShare.value = true;
-  } catch (err) {
-    error.value = err.message || "Unable to create share link";
-  } finally {
-    busyId.value = "";
-  }
-}
-
-async function copyShare() {
-  if (!shareUrl.value) return;
-  await navigator.clipboard.writeText(shareUrl.value);
-  shareCopied.value = true;
-  if (shareCopyTimer) window.clearTimeout(shareCopyTimer);
-  shareCopyTimer = window.setTimeout(() => {
-    shareCopied.value = false;
-  }, 1500);
-}
-
-function closeShare() {
-  showShare.value = false;
-  shareUrl.value = "";
-  shareCopied.value = false;
 }
 
 async function load() {
@@ -555,6 +499,11 @@ onMounted(load);
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+}
+/* Keep the New Session action proportional rather than a chunky full-size pill. */
+.manage-header .button {
+  padding: 10px 16px;
+  font-size: 14px;
 }
 .manage-title {
   margin: 0;
@@ -726,6 +675,7 @@ onMounted(load);
   cursor: default;
   text-decoration: none;
 }
+
 
 /* ── Close confirmation modal ────────────────────────────────────── */
 .confirm-modal {

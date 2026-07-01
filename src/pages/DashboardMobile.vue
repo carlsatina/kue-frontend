@@ -32,6 +32,11 @@
         </div>
       </div>
 
+      <div v-if="!session" class="empty-state">
+        <div class="empty-text">No active session.</div>
+        <button class="button button-compact" style="margin-top:12px" @click="openCreateSession">Create Session</button>
+      </div>
+
       <div v-if="courts.length" class="courts-stack">
         <div
           v-for="court in courts"
@@ -223,6 +228,11 @@ const {
 
 const sessionLocation = computed(() => formatSessionLocation(session.value));
 const sessionSchedule = computed(() => formatSessionSchedule(session.value));
+
+// Prompt to spin up a session when none is active (App.vue opens the modal).
+function openCreateSession() {
+  document.dispatchEvent(new Event("createSession:open"));
+}
 
 // Pull-to-refresh (mobile)
 const refreshing = ref(false);

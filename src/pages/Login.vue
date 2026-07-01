@@ -51,7 +51,7 @@
         </button>
 
         <div class="auth-links">
-          <span>New here? <router-link to="/register">Create an account</router-link></span>
+          <span>New here? <router-link :to="{ path: '/register', query: authLinkQuery }">Create an account</router-link></span>
           <span>Forgot password? <router-link to="/forgot-password">Reset it</router-link></span>
           <span>Haven't verified yet? <router-link to="/check-email">Check email</router-link></span>
         </div>
@@ -68,13 +68,17 @@
 
 <script setup>
 import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 import { api } from "../api.js";
 import { track } from "../utils/analytics.js";
 import GameLoadingModal from "../components/GameLoadingModal.vue";
 
 const router = useRouter();
-const email = ref("");
+const route = useRoute();
+const email = ref(typeof route.query.email === "string" ? route.query.email : "");
+const authLinkQuery = {};
+if (typeof route.query.email === "string") authLinkQuery.email = route.query.email;
+if (typeof route.query.redirect === "string") authLinkQuery.redirect = route.query.redirect;
 const password = ref("");
 const showPassword = ref(false);
 const error = ref("");
@@ -89,7 +93,8 @@ async function handleLogin() {
     localStorage.setItem("token", data.token);
     track("login");
     window.dispatchEvent(new Event("auth:changed"));
-    router.push("/");
+    const redirect = typeof route.query.redirect === "string" ? route.query.redirect : "/";
+    router.push(redirect);
   } catch (err) {
     error.value = err.message;
   } finally {

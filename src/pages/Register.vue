@@ -28,6 +28,7 @@
             placeholder="Email"
             autocomplete="email"
             :disabled="isRegistering"
+            :readonly="Boolean(invitedEmail)"
           />
           <div class="input-wrap">
             <input
@@ -80,7 +81,7 @@
         </button>
 
         <div class="auth-links">
-          <span>Already have an account? <router-link to="/login">Sign in</router-link></span>
+          <span>Already have an account? <router-link :to="{ path: '/login', query: authLinkQuery }">Sign in</router-link></span>
         </div>
       </div>
     </div>
@@ -95,14 +96,20 @@
 
 <script setup>
 import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 import { api } from "../api.js";
 import { track } from "../utils/analytics.js";
 import GameLoadingModal from "../components/GameLoadingModal.vue";
 
 const router = useRouter();
+const route = useRoute();
+const invitedEmail = typeof route.query.email === "string" ? route.query.email : "";
+const redirect = typeof route.query.redirect === "string" ? route.query.redirect : "";
+const authLinkQuery = {};
+if (invitedEmail) authLinkQuery.email = invitedEmail;
+if (redirect) authLinkQuery.redirect = redirect;
 const fullName = ref("");
-const email = ref("");
+const email = ref(invitedEmail);
 const password = ref("");
 const confirmPassword = ref("");
 const showPassword = ref(false);
@@ -122,10 +129,13 @@ async function handleRegister() {
     const data = await api.register({
       email: email.value,
       password: password.value,
-      fullName: fullName.value
+      fullName: fullName.value,
+      ...(redirect ? { redirect } : {})
     });
     track("register");
-    router.push({ path: "/check-email", query: { email: data.email || email.value } });
+    const query = { email: data.email || email.value };
+    if (redirect) query.redirect = redirect;
+    router.push({ path: "/check-email", query });
   } catch (err) {
     error.value = err.message;
   } finally {

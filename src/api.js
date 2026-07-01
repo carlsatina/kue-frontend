@@ -98,6 +98,25 @@ export const api = {
   deleteSession: (id) => request(`/sessions/${id}`, { method: "DELETE" }),
   updateSession: (id, payload) => request(`/sessions/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   updateSessionFee: (id, payload) => request(`/sessions/${id}/fee`, { method: "PATCH", body: JSON.stringify(payload) }),
+  // Assistants (workspace collaborators)
+  listAssistants: () => request(`/assistants`),
+  inviteAssistant: (email) =>
+    request(`/assistants/invite`, { method: "POST", body: JSON.stringify({ email }) }),
+  revokeAssistantInvite: (inviteId) =>
+    request(`/assistants/invite/${inviteId}`, { method: "DELETE" }),
+  removeAssistant: (userId) =>
+    request(`/assistants/${userId}`, { method: "DELETE" }),
+  assistantInvite: (token) => request(`/assistants/invites/${token}`),
+  publicAssistantInvite: (token) => publicRequest(`/public/assistant-invite/${token}`),
+  listWorkspaces: () => request("/workspaces"),
+  switchWorkspace: (workspaceId) =>
+    request("/workspaces/switch", { method: "POST", body: JSON.stringify({ workspaceId }) }),
+  createWorkspace: (name) => request("/workspaces", { method: "POST", body: JSON.stringify({ name }) }),
+  renameWorkspace: (id, name) =>
+    request(`/workspaces/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }),
+  deleteWorkspace: (id) => request(`/workspaces/${id}`, { method: "DELETE" }),
+  acceptAssistantInvite: (token) =>
+    request(`/assistants/invites/${token}/accept`, { method: "POST" }),
   listCourts: () => request("/courts"),
   createCourt: (payload) => request("/courts", { method: "POST", body: JSON.stringify(payload) }),
   updateCourt: (id, payload) => request(`/courts/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),

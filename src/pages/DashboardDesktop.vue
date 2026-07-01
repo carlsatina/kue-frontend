@@ -22,6 +22,11 @@
           <button class="link-btn" @click="showAddCourt = true">+ Add court</button>
         </div>
 
+        <div v-if="!session" class="empty-hint">
+          No active session.
+          <button class="button button-compact" style="margin-top:12px" @click="openCreateSession">Create Session</button>
+        </div>
+
         <div v-if="courts.length" class="courts-grid">
           <div
             v-for="court in courts"
@@ -177,6 +182,11 @@ const {
 
 const sessionLocation = computed(() => formatSessionLocation(session.value));
 const sessionSchedule = computed(() => formatSessionSchedule(session.value));
+
+// Prompt to spin up a session when none is active (App.vue opens the modal).
+function openCreateSession() {
+  document.dispatchEvent(new Event("createSession:open"));
+}
 
 function courtBadgeClass(court) {
   if (court.status === "maintenance") return "badge-warning";

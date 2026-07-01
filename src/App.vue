@@ -62,6 +62,33 @@
               </div>
             </div>
 
+            <div v-if="workspaces.length" class="profile-popup-workspaces">
+              <div class="ppw-label">Workspace</div>
+              <button
+                v-for="w in workspaces"
+                :key="w.id"
+                class="ppw-item"
+                :class="{ active: w.id === activeWorkspaceId }"
+                type="button"
+                role="menuitemradio"
+                :aria-checked="w.id === activeWorkspaceId"
+                :disabled="workspaceSwitching"
+                @click="switchToWorkspace(w.id)"
+              >
+                <span class="ppw-avatar">{{ (w.name || "?").trim().charAt(0).toUpperCase() }}</span>
+                <span class="ppw-meta">
+                  <span class="ppw-name">{{ w.name }}</span>
+                  <span class="ppw-role">{{ w.role === "owner" ? "Your workspace" : "Collaborator" }}</span>
+                </span>
+                <span v-if="w.id === activeWorkspaceId" class="ppw-check" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path fill="currentColor" d="M9.55 17.05 4.5 12l1.4-1.4 3.65 3.6 8.15-8.15L19.1 7.5z"/></svg>
+                </span>
+              </button>
+              <button class="ppw-manage" type="button" @click="openWorkspaces">
+                <span class="ppw-plus" aria-hidden="true">+</span> Create or manage workspaces
+              </button>
+            </div>
+
             <div class="profile-popup-items">
               <button class="profile-popup-item" type="button" role="menuitem" @click="openSwitchSession">
                 <span class="ppi-icon" aria-hidden="true">
@@ -79,6 +106,15 @@
                 <span class="ppi-text">
                   <span class="ppi-title">Manage Session</span>
                   <span class="ppi-sub">Active &amp; past sessions</span>
+                </span>
+              </button>
+              <button class="profile-popup-item" type="button" role="menuitem" @click="openAssistants">
+                <span class="ppi-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" role="img"><circle cx="9" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3.5 19c0-2.8 2.5-4.8 5.5-4.8s5.5 2 5.5 4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 8.2a2.6 2.6 0 1 1 0 5.2M17 19c0-2.4-1-4.3-3-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                </span>
+                <span class="ppi-text">
+                  <span class="ppi-title">Collaborators</span>
+                  <span class="ppi-sub">Invite people to collaborate</span>
                 </span>
               </button>
               <button class="profile-popup-item" type="button" role="menuitem" @click="goProfile">
@@ -176,6 +212,157 @@
       </div>
     </div>
 
+    <!-- Assistants (workspace collaborators) -->
+    <div v-if="showAssistants" class="modal-backdrop" @click.self="closeAssistants">
+      <div class="modal-card assistants-card">
+        <div class="assistants-head">
+          <h3>Collaborators</h3>
+          <p class="subtitle compact">Invite people to collaborate. Collaborators share your workspace — they can view, create, and manage all of your sessions.</p>
+        </div>
+
+        <form class="assistant-invite-form" @submit.prevent="sendInvite">
+          <label class="field-label" for="assistant-email">Invite by email</label>
+          <div class="assistant-invite-row">
+            <input
+              id="assistant-email"
+              class="input"
+              type="email"
+              inputmode="email"
+              autocomplete="off"
+              placeholder="name@email.com"
+              v-model="inviteEmail"
+              :disabled="inviting"
+            />
+            <button class="button" type="submit" :disabled="inviting || !inviteEmail.trim()">
+              {{ inviting ? "Sending…" : "Send" }}
+            </button>
+          </div>
+          <div v-if="assistantError" class="notice danger">{{ assistantError }}</div>
+          <div v-if="inviteNotice" class="notice success">{{ inviteNotice }}</div>
+        </form>
+
+        <div v-if="assistantLoading" class="assistants-empty">Loading…</div>
+        <template v-else>
+          <div class="assistant-group">
+            <div class="assistant-group-label">Members</div>
+            <ul class="assistant-list">
+              <li v-for="m in members" :key="m.userId" class="assistant-row">
+                <div class="assistant-avatar">{{ initialsFor(m) }}</div>
+                <div class="assistant-row-meta">
+                  <div class="assistant-row-name">{{ m.fullName || m.email }}</div>
+                  <div class="assistant-row-sub">{{ m.email }}</div>
+                </div>
+                <span v-if="m.role === 'owner'" class="assistant-tag owner">Owner</span>
+                <button
+                  v-else
+                  class="assistant-remove"
+                  type="button"
+                  aria-label="Remove collaborator"
+                  :disabled="assistantBusy"
+                  @click="removeMember(m)"
+                >
+                  ✕
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <div v-if="pending.length" class="assistant-group">
+            <div class="assistant-group-label">Pending invites</div>
+            <ul class="assistant-list">
+              <li v-for="inv in pending" :key="inv.id" class="assistant-row">
+                <div class="assistant-avatar pending">✉</div>
+                <div class="assistant-row-meta">
+                  <div class="assistant-row-name">{{ inv.email }}</div>
+                  <div class="assistant-row-sub">Invited · awaiting acceptance</div>
+                </div>
+                <button
+                  class="assistant-remove"
+                  type="button"
+                  aria-label="Revoke invite"
+                  :disabled="assistantBusy"
+                  @click="revokeInvite(inv)"
+                >
+                  ✕
+                </button>
+              </li>
+            </ul>
+          </div>
+        </template>
+
+        <button class="button ghost" type="button" @click="closeAssistants">Done</button>
+      </div>
+    </div>
+
+    <!-- Workspaces (create / switch / rename / delete) -->
+    <div v-if="showWorkspaces" class="modal-backdrop" @click.self="closeWorkspaces">
+      <div class="modal-card assistants-card workspaces-card">
+        <div class="assistants-head">
+          <h3>Workspaces</h3>
+          <p class="subtitle compact">Each workspace has its own sessions, courts, players, and teams. Switch between them, or create a new one.</p>
+        </div>
+
+        <form class="assistant-invite-form" @submit.prevent="submitCreateWorkspace">
+          <label class="field-label" for="new-workspace">Create a workspace</label>
+          <div class="assistant-invite-row">
+            <input
+              id="new-workspace"
+              class="input"
+              type="text"
+              placeholder="e.g. Tuesday League"
+              v-model="newWorkspaceName"
+              :disabled="workspaceBusy"
+            />
+            <button class="button" type="submit" :disabled="workspaceBusy || !newWorkspaceName.trim()">
+              {{ workspaceBusy ? "Working…" : "Create" }}
+            </button>
+          </div>
+          <div v-if="workspaceError" class="notice danger">{{ workspaceError }}</div>
+        </form>
+
+        <div class="assistant-group">
+          <div class="assistant-group-label">Your workspaces</div>
+          <ul class="assistant-list">
+            <li v-for="w in workspaces" :key="w.id" class="assistant-row">
+              <div class="assistant-avatar">{{ (w.name || "?").trim().charAt(0).toUpperCase() }}</div>
+              <div v-if="renamingId === w.id" class="assistant-row-meta">
+                <input class="input compact" v-model="renameName" :disabled="workspaceBusy" @keyup.enter="submitRename" />
+              </div>
+              <div v-else class="assistant-row-meta">
+                <div class="assistant-row-name">
+                  {{ w.name }}
+                  <span v-if="w.id === activeWorkspaceId" class="ws-active-dot" title="Active">●</span>
+                </div>
+                <div class="assistant-row-sub">{{ w.role === "owner" ? "Owner" : "Collaborator" }}</div>
+              </div>
+
+              <div class="ws-actions">
+                <template v-if="renamingId === w.id">
+                  <button class="ws-icon" type="button" :disabled="workspaceBusy" @click="submitRename" title="Save">✓</button>
+                  <button class="ws-icon" type="button" :disabled="workspaceBusy" @click="renamingId = ''" title="Cancel">✕</button>
+                </template>
+                <template v-else>
+                  <button
+                    v-if="w.id !== activeWorkspaceId"
+                    class="ws-switch"
+                    type="button"
+                    :disabled="workspaceSwitching || workspaceBusy"
+                    @click="switchToWorkspace(w.id)"
+                  >
+                    Switch
+                  </button>
+                  <button v-if="w.role === 'owner'" class="ws-icon" type="button" :disabled="workspaceBusy" @click="startRename(w)" title="Rename">✎</button>
+                  <button v-if="w.role === 'owner'" class="ws-icon danger" type="button" :disabled="workspaceBusy" @click="confirmDeleteWorkspace(w)" title="Delete">🗑</button>
+                </template>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <button class="button ghost" type="button" @click="closeWorkspaces">Done</button>
+      </div>
+    </div>
+
     <div v-if="showCreateSession" class="modal-backdrop">
       <div class="modal-card session-create">
         <h3>Create Session</h3>
@@ -255,6 +442,16 @@ import { useRoute, useRouter } from "vue-router";
 import { api, isReadingFromBackend } from "./api.js";
 import { track } from "./utils/analytics.js";
 import { pendingSessionId, selectedSessionId, setPendingSessionId, setSelectedSessionId } from "./state/sessionStore.js";
+import {
+  workspaces,
+  activeWorkspaceId,
+  loadWorkspaces,
+  switchWorkspace,
+  createWorkspace,
+  renameWorkspace,
+  deleteWorkspace,
+  resetWorkspaces
+} from "./state/workspaceStore.js";
 import GameLoadingModal from "./components/GameLoadingModal.vue";
 
 // Create session modal state
@@ -279,6 +476,26 @@ const router = useRouter();
 const showProfileMenu = ref(false);
 const profileMenuRef = ref(null);
 const showSwitchSession = ref(false);
+
+// Assistants (workspace collaborators) modal
+const showAssistants = ref(false);
+const assistantLoading = ref(false);
+const assistantBusy = ref(false);
+const assistantError = ref("");
+const members = ref([]);
+const pending = ref([]);
+const inviteEmail = ref("");
+const inviting = ref(false);
+const inviteNotice = ref("");
+
+// Workspace switcher + management (owned workspaces + ones they collaborate in)
+const workspaceSwitching = ref(false);
+const showWorkspaces = ref(false);
+const workspaceBusy = ref(false);
+const workspaceError = ref("");
+const newWorkspaceName = ref("");
+const renamingId = ref("");
+const renameName = ref("");
 
 const transitionName = ref("page-fade");
 router.beforeEach((to, from) => {
@@ -376,6 +593,181 @@ function createFromSwitch() {
   openCreateSession();
 }
 
+// ── Assistants ─────────────────────────────────────────────────────
+function initialsFor(m) {
+  return (m.fullName || m.email || "?").trim().slice(0, 1).toUpperCase();
+}
+function openAssistants() {
+  closeProfileMenu();
+  showAssistants.value = true;
+  assistantError.value = "";
+  inviteNotice.value = "";
+  inviteEmail.value = "";
+  members.value = [];
+  pending.value = [];
+  loadAssistants();
+}
+async function loadAssistants() {
+  assistantLoading.value = true;
+  assistantError.value = "";
+  try {
+    const data = await api.listAssistants();
+    members.value = data.members || [];
+    pending.value = data.pending || [];
+  } catch (err) {
+    assistantError.value = err.message || "Unable to load assistants";
+  } finally {
+    assistantLoading.value = false;
+  }
+}
+async function sendInvite() {
+  const email = inviteEmail.value.trim();
+  if (!email) return;
+  inviting.value = true;
+  assistantError.value = "";
+  inviteNotice.value = "";
+  try {
+    await api.inviteAssistant(email);
+    track("assistant-invited");
+    inviteNotice.value = `Invite sent to ${email}.`;
+    inviteEmail.value = "";
+    await loadAssistants();
+  } catch (err) {
+    assistantError.value = err.message || "Unable to send invite";
+  } finally {
+    inviting.value = false;
+  }
+}
+async function revokeInvite(inv) {
+  assistantBusy.value = true;
+  assistantError.value = "";
+  try {
+    await api.revokeAssistantInvite(inv.id);
+    await loadAssistants();
+  } catch (err) {
+    assistantError.value = err.message || "Unable to revoke invite";
+  } finally {
+    assistantBusy.value = false;
+  }
+}
+async function removeMember(m) {
+  assistantBusy.value = true;
+  assistantError.value = "";
+  try {
+    await api.removeAssistant(m.userId);
+    await loadAssistants();
+  } catch (err) {
+    assistantError.value = err.message || "Unable to remove assistant";
+  } finally {
+    assistantBusy.value = false;
+  }
+}
+function closeAssistants() {
+  showAssistants.value = false;
+  members.value = [];
+  pending.value = [];
+  inviteEmail.value = "";
+  inviteNotice.value = "";
+  assistantError.value = "";
+}
+
+async function loadUserWorkspaces() {
+  if (!authed.value || route.meta.public) return;
+  try {
+    await loadWorkspaces();
+  } catch {
+    // Non-fatal: the picker just stays hidden if this fails.
+  }
+}
+
+async function switchToWorkspace(id) {
+  if (!id || id === activeWorkspaceId.value || workspaceSwitching.value) {
+    closeProfileMenu();
+    return;
+  }
+  workspaceSwitching.value = true;
+  try {
+    await switchWorkspace(id); // clears the selected session for us
+    await loadSessions();
+    track("workspace-switched");
+    closeProfileMenu();
+    closeWorkspaces();
+    if (route.path !== "/") router.push("/");
+  } catch (err) {
+    workspaceError.value = err.message || "Unable to switch workspace";
+  } finally {
+    workspaceSwitching.value = false;
+  }
+}
+
+function openWorkspaces() {
+  closeProfileMenu();
+  workspaceError.value = "";
+  newWorkspaceName.value = "";
+  renamingId.value = "";
+  renameName.value = "";
+  showWorkspaces.value = true;
+  loadUserWorkspaces();
+}
+function closeWorkspaces() {
+  showWorkspaces.value = false;
+  renamingId.value = "";
+}
+async function submitCreateWorkspace() {
+  const name = newWorkspaceName.value.trim();
+  if (!name || workspaceBusy.value) return;
+  workspaceBusy.value = true;
+  workspaceError.value = "";
+  try {
+    await createWorkspace(name); // server auto-switches into the new workspace
+    newWorkspaceName.value = "";
+    await loadSessions();
+    track("workspace-created");
+    closeWorkspaces();
+    if (route.path !== "/") router.push("/");
+  } catch (err) {
+    workspaceError.value = err.message || "Unable to create workspace";
+  } finally {
+    workspaceBusy.value = false;
+  }
+}
+function startRename(w) {
+  renamingId.value = w.id;
+  renameName.value = w.name;
+  workspaceError.value = "";
+}
+async function submitRename() {
+  const name = renameName.value.trim();
+  if (!name || workspaceBusy.value) return;
+  workspaceBusy.value = true;
+  workspaceError.value = "";
+  try {
+    await renameWorkspace(renamingId.value, name);
+    renamingId.value = "";
+  } catch (err) {
+    workspaceError.value = err.message || "Unable to rename workspace";
+  } finally {
+    workspaceBusy.value = false;
+  }
+}
+async function confirmDeleteWorkspace(w) {
+  if (workspaceBusy.value) return;
+  if (!window.confirm(`Delete "${w.name}"? This permanently removes its sessions, courts, players, and teams.`)) {
+    return;
+  }
+  workspaceBusy.value = true;
+  workspaceError.value = "";
+  try {
+    await deleteWorkspace(w.id);
+    await loadSessions();
+    if (route.path !== "/") router.push("/");
+  } catch (err) {
+    workspaceError.value = err.message || "Unable to delete workspace";
+  } finally {
+    workspaceBusy.value = false;
+  }
+}
+
 function goManageSessions() {
   closeProfileMenu();
   router.push("/sessions");
@@ -387,6 +779,7 @@ function goProfile() {
 function logout() {
   closeProfileMenu();
   localStorage.removeItem("token");
+  resetWorkspaces();
   window.dispatchEvent(new Event("auth:changed"));
   router.push("/login");
 }
@@ -401,6 +794,8 @@ function handleKeydown(e) {
   if (e.key === "Escape") {
     closeProfileMenu();
     closeSwitchSession();
+    closeAssistants();
+    closeWorkspaces();
   }
 }
 
@@ -483,9 +878,11 @@ watch(
 watch(authed, (isAuthed) => {
   if (isAuthed) {
     loadSessions();
+    loadUserWorkspaces();
   } else {
     sessions.value = [];
     setSelectedSessionId("");
+    resetWorkspaces();
   }
 });
 
@@ -531,6 +928,7 @@ function syncModalScrollLock() {
 
 onMounted(() => {
   loadSessions();
+  loadUserWorkspaces();
   document.addEventListener("sessions:updated", handleSessionsUpdated);
   document.addEventListener("createSession:open", openCreateSession);
   window.addEventListener("auth:changed", handleAuthChanged);
@@ -653,6 +1051,176 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.profile-popup-workspaces {
+  padding: 8px 8px 4px;
+  display: grid;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+}
+.ppw-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft, #64748b);
+  padding: 2px 8px 4px;
+}
+.ppw-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+.ppw-item:hover:not(:disabled) {
+  background: var(--bg-1, rgba(21, 101, 192, 0.06));
+}
+.ppw-item.active {
+  background: rgba(21, 101, 192, 0.1);
+}
+.ppw-item:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.ppw-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: rgba(21, 101, 192, 0.14);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.ppw-meta {
+  min-width: 0;
+  display: grid;
+  flex: 1;
+}
+.ppw-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ppw-role {
+  font-size: 12px;
+  color: var(--ink-soft, #64748b);
+}
+.ppw-check {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.ppw-check svg {
+  width: 18px;
+  height: 18px;
+}
+.ppw-manage {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px;
+  margin-top: 2px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ppw-manage:hover {
+  background: var(--bg-1, rgba(21, 101, 192, 0.06));
+}
+.ppw-plus {
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* Workspaces modal rows */
+.ws-active-dot {
+  color: #0f9d8a;
+  font-size: 10px;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+.ws-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  /* When the row is too narrow, drop the actions onto their own line, aligned
+     right, instead of overflowing the modal on mobile. */
+  margin-left: auto;
+}
+/* Keep every workspace row inside the card on small screens: let the action
+   cluster wrap to its own line rather than spilling past the right edge. */
+.workspaces-card {
+  overflow-x: hidden;
+}
+.workspaces-card .assistant-row {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+.workspaces-card .assistant-row-meta {
+  /* Ensure the name column can still shrink so short rows don't wrap needlessly. */
+  flex: 1 1 120px;
+}
+.workspaces-card .assistant-invite-row {
+  flex-wrap: wrap;
+}
+.workspaces-card .assistant-invite-row .input {
+  flex: 1 1 160px;
+}
+.ws-switch {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.ws-switch:hover:not(:disabled) {
+  background: rgba(21, 101, 192, 0.08);
+}
+.ws-icon {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 5px;
+  border-radius: 8px;
+  color: var(--ink-soft, #64748b);
+}
+.ws-icon:hover:not(:disabled) {
+  background: var(--bg-1, rgba(21, 101, 192, 0.06));
+}
+.ws-icon.danger:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.1);
+}
+.ws-icon:disabled,
+.ws-switch:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.input.compact {
+  padding: 6px 8px;
+  font-size: 14px;
 }
 
 .profile-popup-items {
@@ -844,5 +1412,139 @@ onUnmounted(() => {
 }
 .switch-create {
   width: 100%;
+}
+
+/* ── Assistants modal ────────────────────────────────────────────── */
+.assistants-card {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+  max-width: 440px;
+}
+.assistants-head h3 {
+  margin: 0 0 4px;
+}
+.assistants-head .subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft, #64748b);
+  line-height: 1.45;
+}
+.assistant-invite-form {
+  display: grid;
+  gap: 8px;
+}
+.assistant-invite-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.assistant-invite-row .input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* Keep the action button proportional to the input rather than a chunky pill. */
+.assistant-invite-row .button {
+  flex: 0 0 auto;
+  padding: 10px 16px;
+  font-size: 14px;
+}
+.assistant-group {
+  display: grid;
+  gap: 8px;
+}
+.assistant-group-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft, #64748b);
+}
+.assistant-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.assistant-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-1, #f8fafc);
+}
+.assistant-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.assistant-avatar.pending {
+  background: rgba(100, 116, 139, 0.18);
+  color: var(--ink-soft, #64748b);
+}
+.assistant-row-meta {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.assistant-row-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.assistant-row-sub {
+  font-size: 12px;
+  color: var(--ink-soft, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.assistant-tag.owner {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--accent);
+  background: rgba(21, 101, 192, 0.12);
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+.assistant-remove {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-soft, #64748b);
+  font-size: 15px;
+  cursor: pointer;
+}
+.assistant-remove:hover {
+  background: rgba(185, 28, 28, 0.1);
+  color: var(--accent-3, #b91c1c);
+}
+.assistant-remove:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.assistants-empty {
+  font-size: 14px;
+  color: var(--ink-soft, #64748b);
+  text-align: center;
+  padding: 8px 0;
 }
 </style>

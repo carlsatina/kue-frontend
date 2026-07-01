@@ -8,7 +8,7 @@
     <div class="check-email-hint">
       Didn’t get it? Check spam or promotions, or wait a minute and refresh.
     </div>
-    <router-link class="button check-email-button" to="/login">Go to login</router-link>
+    <router-link class="button check-email-button" :to="{ path: '/login', query: loginQuery }">Go to login</router-link>
   </div>
 </template>
 
@@ -18,4 +18,10 @@ import { useRoute } from "vue-router";
 
 const route = useRoute();
 const email = computed(() => (route.query.email ? String(route.query.email) : ""));
+const loginQuery = computed(() => {
+  const q = {};
+  if (route.query.email) q.email = String(route.query.email);
+  if (route.query.redirect) q.redirect = String(route.query.redirect);
+  return q;
+});
 </script>

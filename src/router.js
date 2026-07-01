@@ -16,6 +16,7 @@ import Teams from "./pages/Teams.vue";
 import TeamDetail from "./pages/TeamDetail.vue";
 import Profile from "./pages/Profile.vue";
 import ManageSessions from "./pages/ManageSessions.vue";
+import AcceptInvite from "./pages/AcceptInvite.vue";
 import CheckEmail from "./pages/CheckEmail.vue";
 import VerifyEmail from "./pages/VerifyEmail.vue";
 import ForgotPassword from "./pages/ForgotPassword.vue";
@@ -43,7 +44,8 @@ const routes = [
   { path: "/teams/:id", component: TeamDetail, meta: { depth: 2 } },
   { path: "/fees", component: Fees },
   { path: "/profile", component: Profile },
-  { path: "/sessions", component: ManageSessions }
+  { path: "/sessions", component: ManageSessions },
+  { path: "/invite/:token", component: AcceptInvite, meta: { public: true } }
 ];
 
 const router = createRouter({
@@ -54,7 +56,12 @@ const router = createRouter({
 router.beforeEach((to) => {
   if (to.meta.public) return true;
   const token = localStorage.getItem("token");
-  if (!token) return "/login";
+  if (!token) {
+    // Preserve where the user was headed so we can return after login.
+    return to.fullPath && to.fullPath !== "/"
+      ? { path: "/login", query: { redirect: to.fullPath } }
+      : "/login";
+  }
   return true;
 });
 
