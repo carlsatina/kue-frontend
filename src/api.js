@@ -47,6 +47,14 @@ async function request(path, options = {}) {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (res.status === 401) {
+          // Token is missing, expired, or invalid. Drop it and signal the app
+          // to log out and redirect to the login page.
+          localStorage.removeItem("token");
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new Event("auth:expired"));
+          }
+        }
         throw new Error(data.error || "Request failed");
       }
       return data;

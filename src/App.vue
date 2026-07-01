@@ -867,6 +867,19 @@ function handleAuthChanged() {
   authTick.value += 1;
 }
 
+function handleSessionExpired() {
+  // The backend rejected our token (expired/invalid); api.js has already cleared
+  // it from storage. Flip `authed` false so the watcher wipes session/workspace
+  // state, then send the user to login — preserving where they were headed.
+  authTick.value += 1;
+  if (route.meta.public) return;
+  const redirect =
+    route.fullPath && route.fullPath !== "/"
+      ? { path: "/login", query: { redirect: route.fullPath } }
+      : "/login";
+  router.push(redirect);
+}
+
 watch(
   () => route.fullPath,
   () => {
@@ -932,6 +945,7 @@ onMounted(() => {
   document.addEventListener("sessions:updated", handleSessionsUpdated);
   document.addEventListener("createSession:open", openCreateSession);
   window.addEventListener("auth:changed", handleAuthChanged);
+  window.addEventListener("auth:expired", handleSessionExpired);
   window.addEventListener("storage", handleAuthChanged);
   document.addEventListener("pointerdown", handleDocPointer);
   window.addEventListener("keydown", handleKeydown);
@@ -952,6 +966,7 @@ onUnmounted(() => {
   document.removeEventListener("sessions:updated", handleSessionsUpdated);
   document.removeEventListener("createSession:open", openCreateSession);
   window.removeEventListener("auth:changed", handleAuthChanged);
+  window.removeEventListener("auth:expired", handleSessionExpired);
   window.removeEventListener("storage", handleAuthChanged);
   document.removeEventListener("pointerdown", handleDocPointer);
   window.removeEventListener("keydown", handleKeydown);
