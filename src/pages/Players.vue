@@ -100,17 +100,22 @@
                 </div>
                 <span class="status-pill" :class="statusClass(player)">{{ statusLabel(player) }}</span>
               </div>
-              <p class="card-meta">Games: {{ gamesPlayed(player.id) }}</p>
+              <p class="card-meta">
+                G: {{ gamesPlayed(player.id) }}
+                <span v-if="player.skillLevel" class="card-skill" :class="skillClass(player)">{{ skillShort(player) }}</span>
+              </p>
               <p v-if="showJoinOrder" class="card-meta">Join order: {{ joinOrderLabel(player.id) }}</p>
             </div>
           </div>
           <p class="players-count">{{ filteredPlayers.length }} players available</p>
 
           <div class="action-bar">
-            <button class="button button-compact" :disabled="!canAdd" @click="addToQueue">Add to Queue</button>
-            <button class="button secondary button-compact" :disabled="!canAutoQueue" @click="autoQueueIdle">Auto Queue</button>
-            <button v-if="showMarkPresent" class="button secondary button-compact" :disabled="selectedIds.length === 0 || !sessionIsOpen" @click="markPresent">Mark Present</button>
-            <button class="button ghost danger button-compact" :disabled="selectedIds.length === 0" @click="openRemoveConfirm">Remove</button>
+            <button class="button button-compact" :disabled="!canAdd" @click="addToQueue">Add to Q</button>
+            <button class="button secondary button-compact" :disabled="!canAutoQueue" @click="autoQueueIdle">Auto Q</button>
+            <button v-if="showMarkPresent" class="button secondary button-compact" :disabled="selectedIds.length === 0 || !sessionIsOpen" @click="markPresent">✓ Present</button>
+            <button v-if="selectedIds.length > 0" class="button ghost danger button-compact" @click="openRemoveConfirm" aria-label="Remove selected players">
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+            </button>
           </div>
           <div v-if="queueError" class="notice">{{ queueError }}</div>
           <div v-if="removeError" class="notice">{{ removeError }}</div>
@@ -156,7 +161,7 @@
         </div>
 
         <!-- Add Player section -->
-        <div class="add-player-section" :class="{ 'over-limit': joinLimitExceeded, collapsed: !showAddPlayer }">
+        <div class="add-player-section" :class="{ collapsed: !showAddPlayer }">
           <button class="add-player-heading" type="button" :aria-expanded="showAddPlayer" @click="showAddPlayer = !showAddPlayer">
             <span>Add Player</span>
             <svg class="add-player-chevron" :class="{ open: showAddPlayer }" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
@@ -169,7 +174,7 @@
               <div class="chip-row">
                 <button v-for="level in skillLevels" :key="level" class="chip" :class="{ active: skillLevel === level }" type="button" :disabled="!sessionIsOpen" @click="skillLevel = level">{{ level }}</button>
               </div>
-              <button class="button" @click="addPlayer" :disabled="!sessionIsOpen">Add Player</button>
+              <button class="button button-compact" @click="addPlayer" :disabled="!sessionIsOpen">Add Player</button>
               <div v-if="addError" class="notice">{{ addError }}</div>
             </div>
           </template>
@@ -181,7 +186,6 @@
     <div v-if="activeTab === 'queue'" class="tab-content">
       <div class="queue-header">
         <div>
-          <h2 class="tab-heading">Queue</h2>
           <p class="text-muted">{{ queueMatches.length }} match{{ queueMatches.length === 1 ? '' : 'es' }} waiting</p>
         </div>
         <button class="link-button" :class="{ copied: queueCopied }" @click="createQueueShareLink">
@@ -225,7 +229,6 @@
 
     <!-- History Tab -->
     <div v-if="activeTab === 'history'" class="tab-content">
-      <h2 class="tab-heading">Match History</h2>
       <input class="input" v-model="historySearch" placeholder="Search by player name..." />
       <p v-if="filteredHistory.length === 0" class="empty-state">No matches yet.</p>
       <div v-for="match in filteredHistory" :key="match.id" class="history-card sleek">
@@ -326,6 +329,19 @@
         </div>
       </div>
     </div>
+    <div v-if="showAddOverLimitWarning" class="modal-backdrop">
+      <div class="modal-card">
+        <h3>Join limit reached</h3>
+        <div class="subtitle">
+          This session's join limit is {{ regularLimit }} and {{ regularJoinedCount }} players have already joined.
+          Add {{ fullName.trim() || "this player" }} anyway?
+        </div>
+        <div class="grid two">
+          <button class="button" @click="confirmAddOverLimit">Add Anyway</button>
+          <button class="button ghost" @click="closeAddOverLimitWarning">Cancel</button>
+        </div>
+      </div>
+    </div>
     <div v-if="showRemoveConfirm" class="modal-backdrop">
       <div class="modal-card">
         <h3>Remove players</h3>
@@ -410,8 +426,8 @@
           </div>
         </div>
         <div class="pairing-actions">
-          <button class="button ghost" @click="closePairingModal">Cancel</button>
-          <button class="button" @click="confirmPairingAdd">Add to Queue</button>
+          <button class="button ghost button-compact" @click="closePairingModal">Cancel</button>
+          <button class="button button-compact" @click="confirmPairingAdd">Add to Queue</button>
         </div>
       </div>
     </div>
@@ -589,6 +605,7 @@ const matches = ref([]);
 const fullName = ref("");
 const skillLevel = ref("Beginner");
 const addError = ref("");
+const showAddOverLimitWarning = ref(false);
 const search = ref("");
 const selectedIds = ref([]);
 const queueError = ref("");
@@ -750,6 +767,10 @@ const joinLimitExceeded = computed(() => {
   const newExceeded = newJoinerLimit.value > 0 && newJoinedCount.value > newJoinerLimit.value;
   return regularExceeded || newExceeded;
 });
+// True when adding one more regular joiner would exceed the session's limit.
+const wouldExceedRegularLimit = computed(
+  () => regularLimit.value > 0 && regularJoinedCount.value >= regularLimit.value
+);
 
 const playingIds = computed(() => {
   const ids = new Set();
@@ -1147,6 +1168,20 @@ function gamesPlayed(playerId) {
   return sessionPlayerMap.value.get(playerId)?.gamesPlayed || 0;
 }
 
+// Short, scannable skill-level badge for the player card.
+const SKILL_SHORT = {
+  Beginner: "Beg",
+  Intermediate: "Int",
+  Advance: "Adv",
+  Elite: "Elite"
+};
+function skillShort(player) {
+  return SKILL_SHORT[player?.skillLevel] || player?.skillLevel || "";
+}
+function skillClass(player) {
+  return (player?.skillLevel || "").toLowerCase();
+}
+
 function joinOrderLabel(playerId) {
   if (sessionPlayerMap.value.get(playerId)?.isNewPlayer) {
     const order = newJoinerOrderMap.value.get(playerId);
@@ -1490,6 +1525,16 @@ async function addPlayer() {
     addError.value = "Player name is required.";
     return;
   }
+  // Players added here check in as regular joiners, so warn before pushing the
+  // session past its regular join limit — let staff decide whether to continue.
+  if (sessionIsOpen.value && wouldExceedRegularLimit.value) {
+    showAddOverLimitWarning.value = true;
+    return;
+  }
+  await performAddPlayer();
+}
+
+async function performAddPlayer() {
   try {
     const created = await api.createPlayer({ fullName: fullName.value.trim(), skillLevel: skillLevel.value });
     if (session.value?.id && sessionIsOpen.value) {
@@ -1501,6 +1546,15 @@ async function addPlayer() {
   } catch (err) {
     addError.value = err.message || "Unable to add player";
   }
+}
+
+function confirmAddOverLimit() {
+  showAddOverLimitWarning.value = false;
+  performAddPlayer();
+}
+
+function closeAddOverLimitWarning() {
+  showAddOverLimitWarning.value = false;
 }
 
 async function ensureCheckedIn(playerIds) {
@@ -2679,46 +2733,55 @@ onUnmounted(() => {
 .players-page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   /* app-shell already pads sides; no extra horizontal padding needed */
+  /* Pull the tab strip up toward the nav: the header leaves a 20px gap below
+     itself, which reads as too much empty space above the transparent tabs. */
+  margin-top: -25px;
 }
 
-/* ── Tab bar ─────────────────────────────────────────────────────── */
+/* ── Tab bar (underline tabs) ────────────────────────────────────── */
 .players-tab-bar {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  background: #ffffff;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 5px;
-  gap: 4px;
+  border-bottom: 1px solid var(--border);
 }
 
 .players-tab {
   border: none;
-  border-radius: 999px;
-  padding: 9px 12px;
+  background: transparent;
+  padding: 12px 8px;
   font-size: 15px;
   font-weight: 600;
-  background: transparent;
   color: var(--ink-soft);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  /* The active underline sits on the row's hairline divider. */
+  border-bottom: 2.5px solid transparent;
+  margin-bottom: -1px;
+  border-top-left-radius: var(--radius-sm);
+  border-top-right-radius: var(--radius-sm);
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.players-tab:hover {
+  color: var(--ink);
 }
 
 .players-tab.active {
-  background: var(--accent);
-  color: #ffffff;
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  /* Soft accent tint behind the active tab, capped by the underline. */
+  background: rgba(15, 157, 138, 0.1);
 }
 
 .tab-badge {
-  position: absolute;
-  top: -3px;
-  right: -3px;
-  min-width: 17px;
-  height: 17px;
-  padding: 0 5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
   border-radius: 999px;
   background: var(--accent-2);
   color: #ffffff;
@@ -2784,11 +2847,65 @@ onUnmounted(() => {
   margin: 2px 0 0;
 }
 
+.card-skill {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  /* Fallback tint; per-level colors below. */
+  background: rgba(71, 85, 105, 0.12);
+  color: var(--ink-soft);
+}
+
+.card-skill.beginner {
+  background: rgba(71, 85, 105, 0.12);
+  color: #475569;
+}
+
+.card-skill.intermediate {
+  background: rgba(21, 101, 192, 0.14);
+  color: #1565c0;
+}
+
+.card-skill.advance {
+  background: rgba(15, 157, 138, 0.14);
+  color: #0f9d8a;
+}
+
+.card-skill.elite {
+  background: rgba(242, 163, 58, 0.18);
+  color: #b26a00;
+}
+
 /* ── Action bar ──────────────────────────────────────────────────── */
 .action-bar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+/* Buttons share the row width equally and stay on one line, adapting
+   when "Mark Present" is hidden. */
+.action-bar .button {
+  flex: 1 1 0;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 8px;
+  padding-right: 8px;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Keep the icon-only Remove button from stretching as wide as the text
+   buttons; it just needs room for the trash glyph. */
+.action-bar .button.danger {
+  flex: 0 0 auto;
 }
 
 /* ── Add Player section ──────────────────────────────────────────── */
@@ -2872,13 +2989,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-.tab-heading {
-  font-size: 22px;
-  font-weight: 700;
-  margin: 0;
-  color: var(--ink);
 }
 
 /* ── Queue header ────────────────────────────────────────────────── */
