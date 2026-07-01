@@ -62,7 +62,7 @@
               </div>
             </div>
 
-            <div v-if="workspaces.length" class="profile-popup-workspaces">
+            <div class="profile-popup-workspaces">
               <div class="ppw-label">Workspace</div>
               <button
                 v-for="w in workspaces"
