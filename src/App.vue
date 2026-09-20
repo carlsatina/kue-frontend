@@ -20,6 +20,10 @@
             <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><circle cx="7.5" cy="9" r="2.5"/><circle cx="16.5" cy="9" r="2.5"/><path d="M2.5 19c0-2.6 2.2-4.6 5-4.6s5 2 5 4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M11.5 19c0-2.6 2.2-4.6 5-4.6s5 2 5 4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
             <span class="nav-label">Teams</span>
           </router-link>
+          <router-link v-else to="/groups" class="nav-item">
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><circle cx="9" cy="8" r="3"/><circle cx="16.5" cy="9.5" r="2.5"/><path d="M3 19c0-3 2.7-5.2 6-5.2s6 2.2 6 5.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M15.5 19c0-2.4 1.6-4.2 3.6-4.2 1 0 1.9.4 2.6 1.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+            <span class="nav-label">Groups</span>
+          </router-link>
           <router-link to="/rankings" class="nav-item">
             <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><path d="M4 20h4V9H4v11zm6 0h4V4h-4v16zm6 0h4v-7h-4v7z"/></svg></span>
             <span class="nav-label">Rank</span>
@@ -155,6 +159,10 @@
       <router-link v-if="showTeamsNav" to="/teams" class="nav-item">
         <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><circle cx="7.5" cy="9" r="2.5"/><circle cx="16.5" cy="9" r="2.5"/><path d="M2.5 19c0-2.6 2.2-4.6 5-4.6s5 2 5 4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M11.5 19c0-2.6 2.2-4.6 5-4.6s5 2 5 4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
         <span class="nav-label">Teams</span>
+      </router-link>
+      <router-link v-else to="/groups" class="nav-item">
+        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><circle cx="9" cy="8" r="3"/><circle cx="16.5" cy="9.5" r="2.5"/><path d="M3 19c0-3 2.7-5.2 6-5.2s6 2.2 6 5.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M15.5 19c0-2.4 1.6-4.2 3.6-4.2 1 0 1.9.4 2.6 1.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        <span class="nav-label">Groups</span>
       </router-link>
       <router-link to="/rankings" class="nav-item">
         <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><path d="M4 20h4V9H4v11zm6 0h4V4h-4v16zm6 0h4v-7h-4v7z"/></svg></span>
@@ -400,6 +408,29 @@
             </select>
           </div>
         </div>
+        <div v-if="newSessionMode !== 'tournament'" class="field-grid two">
+          <div class="field">
+            <label class="field-label">Queue style</label>
+            <select class="input" v-model="newQueueMode">
+              <option value="pairs">Fixed pairs</option>
+              <option value="open_play">Open play</option>
+            </select>
+            <p class="field-hint">
+              {{ newQueueMode === 'open_play'
+                ? 'Players line up one racket at a time; a free court takes the front of the line.'
+                : 'Players queue as a ready-made side.' }}
+            </p>
+          </div>
+          <div v-if="newQueueMode === 'open_play'" class="field">
+            <label class="field-label">Pairing</label>
+            <select class="input" v-model="newPairingStrategy">
+              <option value="arrival">Lineup order</option>
+              <option value="balanced">Balance skill</option>
+              <option value="avoid_repeat">Avoid repeat partners</option>
+            </select>
+            <p class="field-hint">How the four called players are split into teams.</p>
+          </div>
+        </div>
         <div class="field">
           <label class="field-label">Fee amount</label>
           <input class="input" v-model.number="newFeeAmount" type="number" min="0" />
@@ -462,6 +493,8 @@ const newStartsAt = ref("");
 const newEndsAt = ref("");
 const newGameType = ref("doubles");
 const newSessionMode = ref("usual");
+const newQueueMode = ref("pairs");
+const newPairingStrategy = ref("arrival");
 const newFeeAmount = ref(100);
 const newRequirePayment = ref(false);
 const newPaymentDeadline = ref("");
@@ -546,17 +579,20 @@ const brandSessionLabel = computed(() => {
   const location = activeSession.value.location?.trim();
   return location ? `${activeSession.value.name} @ 📍${location}` : activeSession.value.name;
 });
-const showTeamsNav = computed(() => {
-  if (!activeSession.value) return true;
-  return activeSession.value.mode === "tournament";
-});
-const navClass = computed(() => (showTeamsNav.value ? "nav-6" : "nav-5"));
+// Teams is the tournament construct, so its tab only earns the shared slot
+// during a tournament session; every other time the slot shows Groups.
+const showTeamsNav = computed(() => activeSession.value?.mode === "tournament");
+// The Teams tab (tournament construct) and the Groups tab (social roster)
+// share one slot, so the bar is always six columns wide.
+const navClass = computed(() => "nav-6");
 
 function openCreateSession() {
   createError.value = "";
   newSessionName.value = "Evening Open Play";
   newGameType.value = "doubles";
   newSessionMode.value = "usual";
+  newQueueMode.value = "pairs";
+  newPairingStrategy.value = "arrival";
   newFeeAmount.value = 100;
   newRequirePayment.value = false;
   newPaymentDeadline.value = "";
@@ -809,6 +845,9 @@ async function submitCreateSession() {
       endsAt: newEndsAt.value ? new Date(newEndsAt.value).toISOString() : undefined,
       gameType: newGameType.value,
       mode: newSessionMode.value,
+      // Open play and tournament are mutually exclusive on the server.
+      queueMode: newSessionMode.value === "tournament" ? "pairs" : newQueueMode.value,
+      pairingStrategy: newPairingStrategy.value,
       feeMode: "flat",
       feeAmount: Number(newFeeAmount.value),
       requirePaymentToJoin: Boolean(newRequirePayment.value),

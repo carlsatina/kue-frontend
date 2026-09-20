@@ -28,9 +28,14 @@
         <!-- Players header: session-level join link -->
         <div v-if="session" class="players-header">
           <span class="players-header-hint">Share with players to join this session</span>
-          <button class="link-button" :class="{ copied: joinLinkCopied }" @click="openJoinLink">
-            <span class="link-icon">{{ joinLinkCopied ? "✓" : "🔗" }}</span> {{ joinLinkCopied ? "Link Copied!" : "Join Link" }}
-          </button>
+          <div class="players-header-actions">
+            <button class="link-button" @click="openGroupPicker">
+              <span class="link-icon">👥</span> From Group
+            </button>
+            <button class="link-button" :class="{ copied: joinLinkCopied }" @click="openJoinLink">
+              <span class="link-icon">{{ joinLinkCopied ? "✓" : "🔗" }}</span> {{ joinLinkCopied ? "Link Copied!" : "Join Link" }}
+            </button>
+          </div>
         </div>
 
         <!-- Search row -->
@@ -71,7 +76,10 @@
 
         <!-- Player grid -->
         <template v-if="selectionTab === 'players'">
-          <p class="pick-hint">Pick {{ selectionLimit }} players to start a match</p>
+          <p v-if="isOpenPlay" class="pick-hint">
+            Pick 1 player to join the lineup, or 2 to keep them together as a pair
+          </p>
+          <p v-else class="pick-hint">Pick {{ selectionLimit }} players to start a match</p>
           <div class="player-grid">
             <div
               v-for="player in filteredPlayers"
@@ -110,7 +118,9 @@
           <p class="players-count">{{ filteredPlayers.length }} players available</p>
 
           <div class="action-bar">
-            <button class="button button-compact" :disabled="!canAdd" @click="addToQueue">Add to Q</button>
+            <button class="button button-compact" :disabled="!canAdd" @click="addToQueue">
+              {{ isOpenPlay ? 'Add to Lineup' : 'Add to Q' }}
+            </button>
             <button class="button secondary button-compact" :disabled="!canAutoQueue" @click="autoQueueIdle">Auto Q</button>
             <button v-if="showMarkPresent" class="button secondary button-compact" :disabled="selectedIds.length === 0 || !sessionIsOpen" @click="markPresent">✓ Present</button>
             <button v-if="selectedIds.length > 0" class="button ghost danger button-compact" @click="openRemoveConfirm" aria-label="Remove selected players">
@@ -201,6 +211,48 @@
         </div>
       </div>
 
+      <!-- Open play: one ordered lineup of rackets, called onto courts -->
+      <template v-if="isOpenPlay">
+        <div class="lineup-call-row">
+          <p class="text-muted">
+            {{ lineupEntries.length }} racket{{ lineupEntries.length === 1 ? '' : 's' }} waiting
+          </p>
+          <div v-if="availableCourts.length" class="court-buttons">
+            <button
+              v-for="court in availableCourts"
+              :key="court.id"
+              class="button button-compact"
+              :disabled="callingCourtId === court.id"
+              @click="callNext(court)"
+            >
+              {{ callingCourtId === court.id ? 'Calling…' : `Call to ${court.court?.name || court.name}` }}
+            </button>
+          </div>
+          <p v-else class="text-muted">No free courts.</p>
+        </div>
+        <div v-if="callError" class="notice">{{ callError }}</div>
+        <div v-if="lastCall" class="notice success">{{ lastCall }}</div>
+
+        <p v-if="lineupEntries.length === 0" class="empty-state">Lineup is empty.</p>
+        <div v-else class="lineup-list">
+          <div
+            v-for="(entry, idx) in lineupEntries"
+            :key="entry.id"
+            class="lineup-row"
+            :class="{ 'next-up': idx < nextUpCount }"
+          >
+            <span class="lineup-position">{{ idx + 1 }}</span>
+            <div class="lineup-names">
+              <span class="lineup-name">{{ entry.names.join(' + ') }}</span>
+              <span v-if="entry.lockedTeams" class="lineup-tag">fixed match</span>
+              <span v-else-if="entry.names.length > 1" class="lineup-tag">partners</span>
+            </div>
+            <button class="link-button danger" @click="removeFromLineup(entry)">Remove</button>
+          </div>
+        </div>
+      </template>
+
+      <template v-else>
       <p v-if="queueMatches.length === 0" class="empty-state">Queue is empty.</p>
       <div v-for="(match, idx) in queueMatches" :key="match.id" class="queue-match-card" :class="{ alt: idx % 2 === 1 }">
         <div class="queue-card-head">
@@ -225,6 +277,7 @@
         </div>
         <button class="link-button danger" @click="cancelQueuedMatch(match)">Cancel match</button>
       </div>
+      </template>
     </div>
 
     <!-- History Tab -->
@@ -582,15 +635,71 @@
       <button class="button ghost" @click="closeJoinLinkModal">Close</button>
     </div>
   </div>
+
+  <!-- Add players from a group -->
+  <div v-if="showGroupPicker" class="modal-backdrop">
+    <div class="modal-card">
+      <h3>Add from group</h3>
+      <div v-if="groupsLoading" class="subtitle">Loading groups…</div>
+      <div v-else-if="groups.length === 0" class="subtitle">
+        No groups yet. Create one from the Groups tab to reuse a roster here.
+      </div>
+      <template v-else>
+        <div class="field">
+          <label class="field-label">Group</label>
+          <select class="input" v-model="groupPickerId" @change="loadGroupMembers">
+            <option value="">Select a group…</option>
+            <option v-for="g in groups" :key="g.id" :value="g.id">
+              {{ g.name }} ({{ g.memberCount }})
+            </option>
+          </select>
+        </div>
+
+        <div v-if="groupPickerId" class="group-member-picker">
+          <div class="group-picker-head">
+            <span class="subtitle">{{ groupPickerSelection.length }} selected</span>
+            <button class="button ghost button-compact" @click="toggleGroupSelectAll">
+              {{ groupPickerSelection.length ? 'Clear' : 'Select all' }}
+            </button>
+          </div>
+          <p v-if="groupMembers.length === 0" class="subtitle">This group has no members yet.</p>
+          <p v-else-if="groupPickerSelection.length === 0" class="subtitle">
+            Tick the players joining this session.
+          </p>
+          <label v-for="member in groupMembers" :key="member.id" class="group-picker-row">
+            <input type="checkbox" :value="member.playerId" v-model="groupPickerSelection" />
+            <span class="group-picker-name">
+              {{ member.player.nickname || member.player.fullName }}
+            </span>
+            <span v-if="activeSessionPlayerIds.has(member.playerId)" class="group-picker-tag">In session</span>
+          </label>
+        </div>
+      </template>
+
+      <div v-if="groupPickerError" class="notice">{{ groupPickerError }}</div>
+      <div class="grid two">
+        <button class="button ghost" @click="closeGroupPicker">Cancel</button>
+        <button
+          class="button"
+          :disabled="groupPickerSelection.length === 0 || groupPickerSubmitting"
+          @click="addFromGroup"
+        >{{ groupPickerSubmitting ? 'Adding…' : `Add ${groupPickerSelection.length}` }}</button>
+      </div>
+    </div>
+  </div>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { api, withLoadingScope } from "../api.js";
 import { track } from "../utils/analytics.js";
 import { loadManualTeams } from "../utils/teamBuilder.js";
 import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.js";
+
+const route = useRoute();
+const router = useRouter();
 
 function openCreateSession() {
   document.dispatchEvent(new Event("createSession:open"));
@@ -697,7 +806,36 @@ const isTournamentMode = computed(() => session.value?.mode === "tournament");
 const sessionGameTypeLabel = computed(() =>
   sessionGameType.value === "singles" ? "Singles" : "Doubles"
 );
-const selectionLimit = computed(() => (sessionGameType.value === "singles" ? 2 : 4));
+// Open play queues one racket at a time; the classic flow picks a whole match.
+const isOpenPlay = computed(() => session.value?.queueMode === "open_play");
+const selectionLimit = computed(() => {
+  if (sessionGameType.value === "singles") return isOpenPlay.value ? 1 : 2;
+  return isOpenPlay.value ? 2 : 4;
+});
+
+// The lineup, in call order, with the names already resolved for display.
+const lineupEntries = computed(() =>
+  queueEntries.value.map((entry) => ({
+    id: entry.id,
+    lockedTeams: entry.lockedTeams,
+    playerIds: entry.players.map((p) => p.playerId),
+    names: entry.players.map((p) => p.player.nickname || p.player.fullName)
+  }))
+);
+
+// How many rackets off the head fill the next court — just for highlighting.
+const nextUpCount = computed(() => {
+  const seats = sessionGameType.value === "singles" ? 2 : 4;
+  let remaining = seats;
+  let count = 0;
+  for (const entry of lineupEntries.value) {
+    if (remaining === 0) break;
+    if (entry.playerIds.length > remaining) continue;
+    remaining -= entry.playerIds.length;
+    count += 1;
+  }
+  return remaining === 0 ? count : 0;
+});
 
 const sessionPlayerMap = computed(() => {
   const map = new Map();
@@ -848,7 +986,14 @@ const filteredPlayers = computed(() => {
   });
 });
 
-const canAdd = computed(() => selectedIds.value.length === selectionLimit.value && session.value && sessionIsOpen.value);
+const canAdd = computed(() => {
+  if (!session.value || !sessionIsOpen.value) return false;
+  // A lineup racket is 1 player, or 2 who want to stay partners.
+  if (isOpenPlay.value) {
+    return selectedIds.value.length >= 1 && selectedIds.value.length <= selectionLimit.value;
+  }
+  return selectedIds.value.length === selectionLimit.value;
+});
 const idleCandidates = computed(() => {
   if (!session.value) return [];
   const now = nowTick.value;
@@ -1496,6 +1641,132 @@ function load() {
   });
 }
 
+// ── Open play: the racket lineup ─────────────────────────────────────
+const callingCourtId = ref("");
+const callError = ref("");
+const lastCall = ref("");
+
+// One entry per racket: a solo player, or a pair staying together.
+async function enqueueLineupRacket(playerIds) {
+  await ensureCheckedIn(playerIds);
+  await api.enqueue(session.value.id, { playerIds });
+  track("queue-add", { kind: "lineup", count: playerIds.length });
+  selectedIds.value = [];
+  await load();
+}
+
+// Hand a free court to the front of the lineup. The server picks and starts the
+// match in one transaction, so two staff tapping at once can't double-book.
+async function callNext(court) {
+  if (!session.value || !sessionIsOpen.value) return;
+  callError.value = "";
+  lastCall.value = "";
+  callingCourtId.value = court.id;
+  try {
+    const result = await api.callNextMatch(session.value.id, { courtSessionId: court.id });
+    const named = (result.teams || []).map((team) =>
+      team.map((id) => playerMap.value.get(id)?.nickname || playerMap.value.get(id)?.fullName || "?").join(" + ")
+    );
+    lastCall.value = `${court.court?.name || court.name}: ${named.join(" vs ")}`;
+    if (result.skippedEntryIds?.length) {
+      lastCall.value += ` · ${result.skippedEntryIds.length} passed over (kept their place)`;
+    }
+    track("match-started", { matchType: sessionGameType.value, via: "call-next" });
+    await load();
+  } catch (err) {
+    callError.value = err.message || "Unable to call the next match";
+  } finally {
+    callingCourtId.value = "";
+  }
+}
+
+async function removeFromLineup(entry) {
+  callError.value = "";
+  try {
+    await api.dequeue(session.value.id, { entryId: entry.id });
+    await load();
+  } catch (err) {
+    callError.value = err.message || "Unable to remove that racket";
+  }
+}
+
+// ── Add players from a group ─────────────────────────────────────────
+const showGroupPicker = ref(false);
+const groups = ref([]);
+const groupsLoading = ref(false);
+const groupPickerId = ref("");
+const groupMembers = ref([]);
+const groupPickerSelection = ref([]);
+const groupPickerSubmitting = ref(false);
+const groupPickerError = ref("");
+
+async function openGroupPicker() {
+  groupPickerError.value = "";
+  groupPickerId.value = "";
+  groupMembers.value = [];
+  groupPickerSelection.value = [];
+  showGroupPicker.value = true;
+  groupsLoading.value = true;
+  try {
+    groups.value = await api.listGroups();
+  } catch (err) {
+    groupPickerError.value = err.message || "Unable to load groups";
+  } finally {
+    groupsLoading.value = false;
+  }
+}
+
+function closeGroupPicker() {
+  showGroupPicker.value = false;
+  groupPickerError.value = "";
+}
+
+async function loadGroupMembers() {
+  groupPickerError.value = "";
+  groupMembers.value = [];
+  groupPickerSelection.value = [];
+  if (!groupPickerId.value) return;
+  try {
+    const group = await api.group(groupPickerId.value);
+    groupMembers.value = group.members || [];
+    // Nothing is ticked to start: picking a group only shows who's on it, and
+    // the organiser chooses who's actually playing. "Select all" is one tap
+    // away for the nights when it's everyone.
+    groupPickerSelection.value = [];
+  } catch (err) {
+    groupPickerError.value = err.message || "Unable to load group members";
+  }
+}
+
+function toggleGroupSelectAll() {
+  if (groupPickerSelection.value.length) {
+    groupPickerSelection.value = [];
+    return;
+  }
+  // Skip anyone already in the session — they don't need adding again.
+  groupPickerSelection.value = groupMembers.value
+    .map((m) => m.playerId)
+    .filter((playerId) => !activeSessionPlayerIds.value.has(playerId));
+}
+
+async function addFromGroup() {
+  if (!session.value) return;
+  groupPickerError.value = "";
+  groupPickerSubmitting.value = true;
+  try {
+    await api.addSessionPlayers(session.value.id, {
+      groupId: groupPickerId.value,
+      playerIds: groupPickerSelection.value
+    });
+    showGroupPicker.value = false;
+    await load();
+  } catch (err) {
+    groupPickerError.value = err.message || "Unable to add players";
+  } finally {
+    groupPickerSubmitting.value = false;
+  }
+}
+
 // Pull-to-refresh (mobile)
 async function pullRefresh() {
   if (refreshing.value) return;
@@ -1575,6 +1846,18 @@ async function addToQueue() {
   queueError.value = "";
   removeError.value = "";
   presentError.value = "";
+  if (isOpenPlay.value) {
+    if (!selectedIds.value.length || selectedIds.value.length > selectionLimit.value) {
+      queueError.value = `Select 1${selectionLimit.value > 1 ? ` or ${selectionLimit.value}` : ""} player${selectionLimit.value > 1 ? "s" : ""}.`;
+      return;
+    }
+    try {
+      await enqueueLineupRacket(selectedIds.value);
+    } catch (err) {
+      queueError.value = err.message || "Unable to add to the lineup";
+    }
+    return;
+  }
   if (selectedIds.value.length !== selectionLimit.value) {
     queueError.value = `Select ${selectionLimit.value} players.`;
     return;
@@ -2689,9 +2972,25 @@ watch(teamOptions, (teams) => {
   selectedTeamIds.value = selectedTeamIds.value.filter((id) => ids.has(id));
 });
 
-onMounted(() => {
-  load();
-  if (sessionIsOpen.value) {
+// A group page can hand off here with ?group=<id> — open the picker on that
+// group so "Add to session" from a group is still one trip.
+async function openGroupPickerFromLink(groupId) {
+  await openGroupPicker();
+  groupPickerId.value = groupId;
+  await loadGroupMembers();
+  // Drop the query so a refresh (or going back) doesn't reopen the modal.
+  router.replace({ path: "/players" });
+}
+
+onMounted(async () => {
+  await load();
+  const linkedGroup = route.query.group;
+  if (linkedGroup) {
+    await openGroupPickerFromLink(String(linkedGroup));
+  }
+  // The sessionIsOpen watcher may already have started the tick timer while we
+  // were awaiting load(), so only start one if it hasn't.
+  if (sessionIsOpen.value && !timerId) {
     timerId = setInterval(() => {
       nowTick.value = Date.now();
     }, 1000);
@@ -2982,6 +3281,111 @@ onUnmounted(() => {
 .players-header-hint {
   font-size: 13px;
   color: var(--ink-soft);
+}
+
+.players-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ── Open play lineup ────────────────────────────────────────────── */
+.lineup-call-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.lineup-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.lineup-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.lineup-row.next-up {
+  background: rgba(21, 101, 192, 0.06);
+}
+
+.lineup-position {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  width: 20px;
+  flex-shrink: 0;
+}
+
+.lineup-names {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lineup-name {
+  font-size: 16px;
+}
+
+.lineup-tag {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+/* ── Add from group ──────────────────────────────────────────────── */
+.group-member-picker {
+  max-height: 46vh;
+  overflow-y: auto;
+  margin-bottom: 14px;
+}
+
+.group-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 6px;
+}
+
+.group-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 2px;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.group-picker-row input {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.group-picker-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-picker-tag {
+  font-size: 13px;
+  color: var(--ink-soft);
+  flex-shrink: 0;
 }
 
 /* ── Tab content areas (Queue / History) ─────────────────────────── */

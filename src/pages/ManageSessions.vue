@@ -163,6 +163,28 @@
             </select>
           </div>
         </div>
+        <div v-if="editMode !== 'tournament'" class="field-grid two">
+          <div class="field">
+            <label class="field-label">Queue style</label>
+            <select class="input" v-model="editQueueMode">
+              <option value="pairs">Fixed pairs</option>
+              <option value="open_play">Open play</option>
+            </select>
+            <p class="field-hint">
+              {{ editQueueMode === 'open_play'
+                ? 'Players line up one racket at a time; a free court takes the front of the line.'
+                : 'Players queue as a ready-made side.' }}
+            </p>
+          </div>
+          <div v-if="editQueueMode === 'open_play'" class="field">
+            <label class="field-label">Pairing</label>
+            <select class="input" v-model="editPairingStrategy">
+              <option value="arrival">Lineup order</option>
+              <option value="balanced">Balance skill</option>
+              <option value="avoid_repeat">Avoid repeat partners</option>
+            </select>
+          </div>
+        </div>
         <div class="field">
           <label class="field-label">Fee amount</label>
           <input class="input" v-model.number="editFeeAmount" type="number" min="0" />
@@ -271,6 +293,8 @@ const editStartsAt = ref("");
 const editEndsAt = ref("");
 const editGameType = ref("doubles");
 const editMode = ref("usual");
+const editQueueMode = ref("pairs");
+const editPairingStrategy = ref("arrival");
 const editFeeAmount = ref(0);
 const editRequirePayment = ref(false);
 const editPaymentDeadline = ref("");
@@ -308,6 +332,8 @@ function openEdit(s) {
   editEndsAt.value = toLocalInput(s.endsAt);
   editGameType.value = s.gameType || "doubles";
   editMode.value = s.mode || "usual";
+  editQueueMode.value = s.queueMode || "pairs";
+  editPairingStrategy.value = s.pairingStrategy || "arrival";
   editFeeAmount.value = Number(s.feeAmount || 0);
   editRequirePayment.value = Boolean(s.requirePaymentToJoin);
   editPaymentDeadline.value = toLocalInput(s.paymentDeadline);
@@ -334,6 +360,9 @@ async function saveEdit() {
       endsAt: editEndsAt.value ? new Date(editEndsAt.value).toISOString() : null,
       gameType: editGameType.value,
       mode: editMode.value,
+      // The server rejects open play on a tournament session.
+      queueMode: editMode.value === "tournament" ? "pairs" : editQueueMode.value,
+      pairingStrategy: editPairingStrategy.value,
       feeAmount: Number(editFeeAmount.value || 0),
       requirePaymentToJoin: Boolean(editRequirePayment.value),
       paymentDeadline: editPaymentDeadline.value ? new Date(editPaymentDeadline.value).toISOString() : null,

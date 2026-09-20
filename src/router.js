@@ -13,6 +13,9 @@ import JoinSession from "./pages/JoinSession.vue";
 import Tournament from "./pages/Tournament.vue";
 import Pairing from "./pages/Pairing.vue";
 import Teams from "./pages/Teams.vue";
+import Groups from "./pages/Groups.vue";
+import GroupDetail from "./pages/GroupDetail.vue";
+import JoinGroup from "./pages/JoinGroup.vue";
 import TeamDetail from "./pages/TeamDetail.vue";
 import Profile from "./pages/Profile.vue";
 import ManageSessions from "./pages/ManageSessions.vue";
@@ -29,6 +32,7 @@ const routes = [
   { path: "/fees/:token", component: PublicFees, meta: { public: true, hideHeader: true } },
   { path: "/q/:token", component: PublicQueue, meta: { public: true, hideHeader: true } },
   { path: "/join/:token", component: JoinSession, meta: { public: true } },
+  { path: "/g/:token", component: JoinGroup, meta: { public: true } },
   { path: "/board/:sessionId", component: PublicBoard, meta: { public: true } },
   { path: "/check-email", component: CheckEmail, meta: { public: true } },
   { path: "/verify", component: VerifyEmail, meta: { public: true } },
@@ -42,6 +46,8 @@ const routes = [
   { path: "/team-builder", redirect: "/pairing" },
   { path: "/teams", component: Teams, meta: { depth: 1 } },
   { path: "/teams/:id", component: TeamDetail, meta: { depth: 2 } },
+  { path: "/groups", component: Groups, meta: { depth: 1 } },
+  { path: "/groups/:id", component: GroupDetail, meta: { depth: 2 } },
   { path: "/fees", component: Fees },
   { path: "/profile", component: Profile },
   { path: "/sessions", component: ManageSessions },

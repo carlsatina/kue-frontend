@@ -136,6 +136,23 @@ export const api = {
   deleteTeam: (id) => request(`/teams/${id}`, { method: "DELETE" }),
   updateTeamMembers: (id, payload) =>
     request(`/teams/${id}/members`, { method: "POST", body: JSON.stringify(payload) }),
+  listGroups: () => request("/groups"),
+  createGroup: (payload) => request("/groups", { method: "POST", body: JSON.stringify(payload) }),
+  group: (id) => request(`/groups/${id}`),
+  updateGroup: (id, payload) => request(`/groups/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  deleteGroup: (id) => request(`/groups/${id}`, { method: "DELETE" }),
+  addGroupMembers: (id, payload) =>
+    request(`/groups/${id}/members`, { method: "POST", body: JSON.stringify(payload) }),
+  updateGroupMemberRole: (id, playerId, payload) =>
+    request(`/groups/${id}/members/${playerId}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  removeGroupMember: (id, playerId) =>
+    request(`/groups/${id}/members/${playerId}`, { method: "DELETE" }),
+  createGroupInviteLink: (id, payload = {}) =>
+    request(`/groups/${id}/invite-link`, { method: "POST", body: JSON.stringify(payload) }),
+  revokeGroupInviteLink: (linkId) =>
+    request(`/groups/invite-links/${linkId}/revoke`, { method: "POST" }),
+  addSessionPlayers: (sessionId, payload) =>
+    request(`/sessions/${sessionId}/players/bulk`, { method: "POST", body: JSON.stringify(payload) }),
   listPlayers: () => request("/players"),
   createPlayer: (payload) => request("/players", { method: "POST", body: JSON.stringify(payload) }),
   updatePlayer: (id, payload) => request(`/players/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
@@ -146,6 +163,9 @@ export const api = {
   enqueue: (sessionId, payload) => request(`/queue/${sessionId}/enqueue`, { method: "POST", body: JSON.stringify(payload) }),
   dequeue: (sessionId, payload) => request(`/queue/${sessionId}/dequeue`, { method: "POST", body: JSON.stringify(payload) }),
   reorder: (sessionId, payload) => request(`/queue/${sessionId}/reorder`, { method: "POST", body: JSON.stringify(payload) }),
+  queueEvents: (sessionId, limit = 30) => request(`/queue/${sessionId}/events?limit=${limit}`),
+  callNextMatch: (sessionId, payload) =>
+    request(`/matches/${sessionId}/call-next`, { method: "POST", body: JSON.stringify(payload) }),
   suggestMatch: (sessionId, payload) => request(`/matches/${sessionId}/suggest`, { method: "POST", body: JSON.stringify(payload) }),
   startMatch: (sessionId, payload) => request(`/matches/${sessionId}/start`, { method: "POST", body: JSON.stringify(payload) }),
   endMatch: (sessionId, payload) => request(`/matches/${sessionId}/end`, { method: "POST", body: JSON.stringify(payload) }),
@@ -193,6 +213,13 @@ export const api = {
       .then((r) => r.json().then((d) => { if (!r.ok) throw new Error(d.error || "Request failed"); return d; }));
   },
   publicPlayer: (token) => publicRequest(`/public/player/${token}`),
+  publicGroupInvite: (token) => publicRequest(`/public/group-invite/${token}`),
+  publicJoinGroup: (token, payload) =>
+    publicRequest(`/public/group-invite/${token}/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }),
   publicQueue: (token, options) => publicRequest(`/public/queue/${token}`, options),
   publicQueueRankings: (token, options) => publicRequest(`/public/queue/${token}/rankings`, options),
   publicQueueTeamStats: (token) => publicRequest(`/public/queue/${token}/team-stats`),
