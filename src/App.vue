@@ -3,7 +3,10 @@
     <header v-if="!route.meta.hideHeader" ref="headerRef" class="header">
       <div class="brand">
         <img src="./assets/KuePro.png" alt="KuePro" class="brand-logo" />
-        <span v-if="showProfile" class="brand-session">{{ brandSessionLabel }}</span>
+        <span v-if="showProfile" class="brand-session">
+          <span class="brand-session-name">{{ activeSessionName }}</span>
+          <span v-if="activeSessionLocation" class="brand-session-location">📍{{ activeSessionLocation }}</span>
+        </span>
       </div>
       <!-- Desktop nav lives inside the header -->
       <div v-if="showNav" class="header-center">
@@ -630,11 +633,10 @@ const activeSession = computed(() => {
   const selected = liveSessions.value.find((session) => session.id === selectedSessionId.value);
   return selected || liveSessions.value[0] || null;
 });
-const brandSessionLabel = computed(() => {
-  if (!activeSession.value) return "No active session";
-  const location = activeSession.value.location?.trim();
-  return location ? `${activeSession.value.name} @ 📍${location}` : activeSession.value.name;
-});
+const activeSessionName = computed(() => activeSession.value?.name || "No active session");
+// Location sits on its own line under the name so long venue names wrap
+// instead of being clipped by the pill.
+const activeSessionLocation = computed(() => activeSession.value?.location?.trim() || "");
 // Teams is the tournament construct, so its tab only earns the shared slot
 // during a tournament session; every other time the slot shows Groups.
 const showTeamsNav = computed(() => activeSession.value?.mode === "tournament");
@@ -1108,16 +1110,29 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 .brand-session {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
   font-size: 13px;
   font-weight: 700;
   color: var(--accent);
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: 12px;
   background: rgba(21, 101, 192, 0.1);
   max-width: 180px;
+  min-width: 0;
+  line-height: 1.25;
+}
+.brand-session-name {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.brand-session-location {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
 }
 
 /* Profile popup menu */
