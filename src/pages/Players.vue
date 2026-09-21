@@ -95,9 +95,6 @@
                   <div class="player-name-row">
                     <span v-if="playerTeamColor(player)" class="team-dot" :style="{ backgroundColor: playerTeamColor(player) }"></span>
                     <strong class="player-name-text">{{ player.nickname || player.fullName }}</strong>
-                    <button class="icon-button small" @click.stop="openEditPlayer(player)" aria-label="Edit player">
-                      <svg viewBox="0 0 24 24" role="img"><path d="M4 15.5V20h4.5L19 9.5 14.5 5 4 15.5z"></path></svg>
-                    </button>
                   </div>
                 </div>
                 <span class="status-pill" :class="statusClass(player)">{{ statusLabel(player) }}</span>
@@ -107,6 +104,13 @@
                 <span v-if="player.skillLevel" class="card-skill" :class="skillClass(player)">{{ skillShort(player) }}</span>
               </p>
               <p v-if="showJoinOrder" class="card-meta">Join order: {{ joinOrderLabel(player.id) }}</p>
+              <button
+                class="icon-button small player-edit-btn"
+                @click.stop="openEditPlayer(player)"
+                aria-label="Edit player"
+              >
+                <svg viewBox="0 0 24 24" role="img"><path d="M4 15.5V20h4.5L19 9.5 14.5 5 4 15.5z"></path></svg>
+              </button>
             </div>
           </div>
           <p class="players-count">{{ filteredPlayers.length }} players available</p>

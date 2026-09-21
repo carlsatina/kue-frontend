@@ -1970,6 +1970,19 @@ a {
   padding: 6px 8px;
   background: #fff;
   cursor: pointer;
+  /* Anchors the edit button to the card's lower right. */
+  position: relative;
+}
+
+.player-edit-btn {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+}
+
+/* The meta lines sit left of the button, so a long one can't run under it. */
+.player-card .card-meta {
+  padding-right: 26px;
 }
 
 .player-card.selected {

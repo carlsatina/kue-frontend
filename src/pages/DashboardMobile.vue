@@ -331,6 +331,12 @@ function courtState(court) {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
+  /* Stays put while the courts scroll, parked under the sticky app header.
+     --header-h is measured in App.vue; the fallback covers the frame before
+     the first measurement lands. */
+  position: sticky;
+  top: var(--header-h, 69px);
+  z-index: 40;
 }
 
 .session-meta-row {

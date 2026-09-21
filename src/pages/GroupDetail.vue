@@ -440,6 +440,28 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  /* Stays put while the roster scrolls, parked under the sticky app header.
+     --header-h is measured in App.vue; the fallback is the mobile height for
+     the frame before the first measurement lands. */
+  position: sticky;
+  top: var(--header-h, 69px);
+  z-index: 40;
+  /* Opaque, and bled into the shell's side padding so member rows don't show
+     through the gutters as they pass underneath. */
+  background: var(--bg-0);
+  margin: 0 -16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  /* On a narrow phone the actions drop to their own line rather than
+     squashing the back button. */
+  flex-wrap: wrap;
+}
+
+@media (min-width: 880px) {
+  .detail-header {
+    margin: 0 -24px;
+    padding: 10px 24px;
+  }
 }
 
 .detail-header-actions {
