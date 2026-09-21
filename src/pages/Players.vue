@@ -131,7 +131,12 @@
           <!-- What Auto Q would pick, offered before it's asked for. -->
           <div v-if="autoQueueProposal" class="next-up">
             <div class="next-up-teams">
-              <span class="next-up-label">Next up</span>
+              <span class="next-up-label">
+                Next up
+                <template v-if="autoQueueProposal.resting">
+                  · {{ autoQueueProposal.resting }} still resting
+                </template>
+              </span>
               <span class="next-up-names">
                 {{ autoQueueProposal.teamA.join(' + ') }}
                 <span class="next-up-vs">vs</span>
@@ -964,21 +969,37 @@ const canAdd = computed(() => {
   if (!session.value || !sessionIsOpen.value) return false;
   return selectedIds.value.length === selectionLimit.value;
 });
-const idleCandidates = computed(() => {
+// Fairness, in the order players actually argue about it: fewest games first,
+// then whoever has been sitting out longest, then arrival order.
+function byFairness(a, b) {
+  if (a.gamesPlayed !== b.gamesPlayed) return a.gamesPlayed - b.gamesPlayed;
+  if (b.idleMs !== a.idleMs) return b.idleMs - a.idleMs;
+  // Everyone who hasn't played yet ties on games and idle time, so this
+  // tie-break decides who plays first all night. Whoever checked in earliest
+  // goes first; sorting by name quietly favoured the alphabet.
+  if (a.checkedInMs !== b.checkedInMs) return a.checkedInMs - b.checkedInMs;
+  // Checked in together (a whole group added at once): stable, but not
+  // alphabetical.
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+// Everyone free to be called right now, cooldown aside, in fairness order.
+const availableCandidates = computed(() => {
   if (!session.value) return [];
   const now = nowTick.value;
   return sessionPlayers.value
     .filter((sp) => sp?.player)
     .filter((sp) => {
       if (!AUTO_QUEUE_STATUSES.includes(sp.status)) return false;
-      if (playingIds.value.has(sp.playerId) || queuedIds.value.has(sp.playerId)) return false;
-      if (sp.lastPlayedAt && now - new Date(sp.lastPlayedAt).getTime() < AUTO_QUEUE_COOLDOWN_MS) return false;
-      return true;
+      return !playingIds.value.has(sp.playerId) && !queuedIds.value.has(sp.playerId);
     })
     .map((sp) => {
       const idleMs = sp.lastPlayedAt
         ? Math.max(0, now - new Date(sp.lastPlayedAt).getTime())
         : Number.MAX_SAFE_INTEGER;
+      const cooldownRemainingMs = sp.lastPlayedAt
+        ? Math.max(0, AUTO_QUEUE_COOLDOWN_MS - (now - new Date(sp.lastPlayedAt).getTime()))
+        : 0;
       return {
         id: sp.playerId,
         player: sp.player,
@@ -987,94 +1008,40 @@ const idleCandidates = computed(() => {
         idleSeconds: sp.lastPlayedAt ? Math.floor(idleMs / 1000) : Number.MAX_SAFE_INTEGER,
         // Missing check-in time sorts last rather than jumping the queue.
         checkedInMs: sp.checkedInAt ? new Date(sp.checkedInAt).getTime() : Number.MAX_SAFE_INTEGER,
-        gamesPlayed: sp.gamesPlayed || 0
+        gamesPlayed: sp.gamesPlayed || 0,
+        cooldownRemainingMs,
+        rested: cooldownRemainingMs === 0
       };
     })
-    // Fairness, in the order players actually argue about it: fewest games
-    // first, then whoever has been sitting out longest, then arrival order.
-    .sort((a, b) => {
-      if (a.gamesPlayed !== b.gamesPlayed) return a.gamesPlayed - b.gamesPlayed;
-      if (b.idleMs !== a.idleMs) return b.idleMs - a.idleMs;
-      // Everyone who hasn't played yet ties on games and idle time, so this
-      // tie-break decides who plays first all night. Whoever checked in
-      // earliest goes first; sorting by name quietly favoured the alphabet.
-      if (a.checkedInMs !== b.checkedInMs) return a.checkedInMs - b.checkedInMs;
-      // Checked in together (a whole group added at once): stable, but not
-      // alphabetical.
-      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-    });
+    .sort(byFairness);
 });
-// Map<playerId, Set<partnerId>> — last PARTNER_HISTORY_LIMIT partners per player
-const recentPartnersMap = computed(() => {
-  const map = new Map();
-  const playerSeen = new Map();
-  const ended = [...matches.value]
-    .filter((m) => m.status === "ended" && m.matchType === "doubles")
-    .reverse(); // newest first
-  for (const match of ended) {
-    const participants = match.participants || [];
-    for (const teamNum of [1, 2]) {
-      const pair = participants
-        .filter((p) => p.teamNumber === teamNum)
-        .map((p) => p.playerId)
-        .filter(Boolean);
-      if (pair.length !== 2) continue;
-      const [p1, p2] = pair;
-      const seen1 = playerSeen.get(p1) || 0;
-      const seen2 = playerSeen.get(p2) || 0;
-      if (seen1 < PARTNER_HISTORY_LIMIT) {
-        if (!map.has(p1)) map.set(p1, new Set());
-        map.get(p1).add(p2);
-        playerSeen.set(p1, seen1 + 1);
-      }
-      if (seen2 < PARTNER_HISTORY_LIMIT) {
-        if (!map.has(p2)) map.set(p2, new Set());
-        map.get(p2).add(p1);
-        playerSeen.set(p2, seen2 + 1);
-      }
-    }
-  }
-  return map;
+
+// Players who have had their breather. The normal pool.
+const idleCandidates = computed(() => availableCandidates.value.filter((c) => c.rested));
+
+// What Auto Q may draw from. Rested players first, always; a player still
+// catching their breath is only reached when there aren't enough rested ones to
+// fill a court. The cooldown used to be a hard gate, which deadlocked small
+// sessions: twelve players on two courts means the four who just finished are
+// the only ones free, and Auto Q sat dead for three minutes. Graded like the
+// skill bands — try the good answer, fall back rather than stall.
+const autoQueuePool = computed(() => {
+  const rested = idleCandidates.value;
+  if (rested.length >= selectionLimit.value) return rested;
+  return [...rested, ...availableCandidates.value.filter((c) => !c.rested)];
 });
 
 const canAutoQueue = computed(
-  () => session.value && sessionIsOpen.value && idleCandidates.value.length >= selectionLimit.value
+  () => session.value && sessionIsOpen.value && autoQueuePool.value.length >= selectionLimit.value
 );
-
-// Players who are free and would be picked, but are still inside the cooldown
-// after their last game. They're the usual reason Auto Q can't fire, and
-// without this the button just sits greyed out with no explanation.
-const coolingDown = computed(() => {
-  if (!session.value) return [];
-  const now = nowTick.value;
-  return sessionPlayers.value
-    .filter((sp) => sp?.player)
-    .filter((sp) => {
-      if (!AUTO_QUEUE_STATUSES.includes(sp.status)) return false;
-      if (playingIds.value.has(sp.playerId) || queuedIds.value.has(sp.playerId)) return false;
-      return sp.lastPlayedAt && now - new Date(sp.lastPlayedAt).getTime() < AUTO_QUEUE_COOLDOWN_MS;
-    })
-    .map((sp) => AUTO_QUEUE_COOLDOWN_MS - (now - new Date(sp.lastPlayedAt).getTime()))
-    .sort((a, b) => a - b);
-});
-
-function formatCountdown(ms) {
-  const total = Math.max(0, Math.ceil(ms / 1000));
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-}
 
 // Why Auto Q is unavailable, in the operator's terms. Empty when it's usable.
 const autoQueueHint = computed(() => {
   if (!session.value || !sessionIsOpen.value || canAutoQueue.value) return "";
-  const short = selectionLimit.value - idleCandidates.value.length;
-  const waiting = coolingDown.value;
-  if (waiting.length) {
-    const soonest = formatCountdown(waiting[0]);
-    const n = Math.min(short, waiting.length);
-    return `Need ${short} more — ${n} cooling down, next free in ${soonest}`;
-  }
-  return `Need ${short} more idle player${short === 1 ? "" : "s"}`;
+  const short = selectionLimit.value - autoQueuePool.value.length;
+  return `Need ${short} more player${short === 1 ? "" : "s"} — ${autoQueuePool.value.length} free`;
 });
+
 const canAddTeams = computed(
   () =>
     session.value &&
@@ -1863,8 +1830,8 @@ function pickBalancedGroup(candidates, needed) {
 // so the two can never show different answers.
 function computeAutoQueueOrder() {
   const needed = selectionLimit.value;
-  if (idleCandidates.value.length < needed) return [];
-  const selected = pickBalancedGroup(idleCandidates.value, needed);
+  if (autoQueuePool.value.length < needed) return [];
+  const selected = pickBalancedGroup(autoQueuePool.value, needed);
   if (selected.length < needed) return [];
   return sessionGameType.value === "doubles" && selected.length === 4
     ? buildBalancedDoublesOrder(selected, recentPartnersMap.value)
@@ -1880,8 +1847,13 @@ const autoQueueProposal = computed(() => {
   if (!order.length) return null;
   const name = (id) => playerMap.value.get(id)?.nickname || playerMap.value.get(id)?.fullName || "?";
   const half = order.length / 2;
+  // Worth saying out loud when there weren't enough rested players to fill the
+  // court, so a short turnaround doesn't look like a bug.
+  const restedIds = new Set(idleCandidates.value.map((c) => c.id));
+  const resting = order.filter((id) => !restedIds.has(id)).length;
   return {
     order,
+    resting,
     teamA: order.slice(0, half).map(name),
     teamB: order.slice(half).map(name)
   };
@@ -1922,8 +1894,8 @@ async function autoQueueIdle() {
   removeError.value = "";
   presentError.value = "";
   const needed = selectionLimit.value;
-  if (idleCandidates.value.length < needed) {
-    queueError.value = `Need ${needed} idle players to auto queue.`;
+  if (autoQueuePool.value.length < needed) {
+    queueError.value = `Need ${needed} available players to auto queue.`;
     return;
   }
   const order = computeAutoQueueOrder();

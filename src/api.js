@@ -164,7 +164,6 @@ export const api = {
   dequeue: (sessionId, payload) => request(`/queue/${sessionId}/dequeue`, { method: "POST", body: JSON.stringify(payload) }),
   reorder: (sessionId, payload) => request(`/queue/${sessionId}/reorder`, { method: "POST", body: JSON.stringify(payload) }),
   queueEvents: (sessionId, limit = 30) => request(`/queue/${sessionId}/events?limit=${limit}`),
-  suggestMatch: (sessionId, payload) => request(`/matches/${sessionId}/suggest`, { method: "POST", body: JSON.stringify(payload) }),
   startMatch: (sessionId, payload) => request(`/matches/${sessionId}/start`, { method: "POST", body: JSON.stringify(payload) }),
   endMatch: (sessionId, payload) => request(`/matches/${sessionId}/end`, { method: "POST", body: JSON.stringify(payload) }),
   updateMatchResult: (sessionId, payload) =>
