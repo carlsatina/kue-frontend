@@ -3569,13 +3569,30 @@ html.modal-open body {
   width: 100%;
   border-radius: 999px;
   padding: 4px 10px;
-  text-align: center;
+  /* Name and skill badge on one line, centred together. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
   font-size: 12px;
   font-weight: 600;
   background: rgba(15, 157, 138, 0.18);
   color: var(--accent);
   cursor: grab;
   touch-action: none;
+}
+
+.pairing-pill-name,
+.singles-pill-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The pill is the drag handle, so nothing inside it should swallow the press. */
+.pairing-pill > * {
+  pointer-events: none;
 }
 
 .pairing-pill-b {
@@ -3615,7 +3632,11 @@ html.modal-open body {
 .singles-pill {
   border-radius: 999px;
   padding: 8px 12px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
   font-size: 12px;
   font-weight: 600;
 }

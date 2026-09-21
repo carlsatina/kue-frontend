@@ -111,7 +111,7 @@
           </div>
           <p class="players-count">{{ filteredPlayers.length }} players available</p>
 
-          <div class="action-bar">
+          <div class="action-bar" ref="actionBarRef">
             <button class="button button-compact" :disabled="!canAdd" @click="addToQueue">
               Add to Q
             </button>
@@ -127,6 +127,28 @@
             </button>
           </div>
           <p v-if="autoQueueHint" class="auto-queue-hint">{{ autoQueueHint }}</p>
+
+          <!-- The same primary action as the bar above, brought to the thumb
+               when that bar has scrolled out of view. -->
+          <teleport to="body">
+            <transition name="float-pop">
+              <div v-if="showFloatingActions" class="floating-actions">
+                <span class="floating-count">{{ selectedIds.length }} selected</span>
+                <button
+                  v-if="allSelectedAwaitingPresent"
+                  class="button button-compact"
+                  @click="markPresent"
+                >✓ Present{{ selectedIds.length > 1 ? ` (${selectedIds.length})` : '' }}</button>
+                <button
+                  v-else
+                  class="button button-compact"
+                  :disabled="!canAdd"
+                  @click="addToQueue"
+                >Add to Q</button>
+                <button class="button ghost button-compact" @click="clearSelection">Clear</button>
+              </div>
+            </transition>
+          </teleport>
 
           <!-- What Auto Q would pick, offered before it's asked for. -->
           <div v-if="autoQueueProposal" class="next-up">
@@ -396,17 +418,35 @@
       <div class="modal-card">
         <h3>Queue singles match</h3>
         <div class="subtitle">Confirm these players.</div>
+        <div v-if="awaitingPresentNames.length" class="not-arrived">
+          <div class="not-arrived-text">
+            <strong>{{ awaitingPresentNames.join(', ') }}</strong>
+            {{ awaitingPresentNames.length === 1 ? "hasn't" : "haven't" }} arrived yet.
+            Mark {{ awaitingPresentNames.length === 1 ? 'them' : 'them all' }} present to queue this match.
+          </div>
+          <button class="button button-compact" @click="markPresentFromModal">✓ Mark present</button>
+        </div>
         <div class="singles-match-row">
           <div v-if="singlesQueueOrder[0]" class="singles-pill singles-pill-a">
-            {{ playerNameById(singlesQueueOrder[0]) }}
+            <span class="singles-pill-name">{{ playerNameById(singlesQueueOrder[0]) }}</span>
+            <span
+              v-if="playerById(singlesQueueOrder[0])?.skillLevel"
+              class="card-skill"
+              :class="skillClass(playerById(singlesQueueOrder[0]))"
+            >{{ skillShort(playerById(singlesQueueOrder[0])) }}</span>
           </div>
           <div class="singles-vs">vs</div>
           <div v-if="singlesQueueOrder[1]" class="singles-pill singles-pill-b">
-            {{ playerNameById(singlesQueueOrder[1]) }}
+            <span class="singles-pill-name">{{ playerNameById(singlesQueueOrder[1]) }}</span>
+            <span
+              v-if="playerById(singlesQueueOrder[1])?.skillLevel"
+              class="card-skill"
+              :class="skillClass(playerById(singlesQueueOrder[1]))"
+            >{{ skillShort(playerById(singlesQueueOrder[1])) }}</span>
           </div>
         </div>
         <div class="grid two">
-          <button class="button" @click="confirmSinglesQueueAdd">Add to Queue</button>
+          <button class="button" :disabled="awaitingPresentNames.length > 0" @click="confirmSinglesQueueAdd">Add to Queue</button>
           <button class="button ghost" @click="closeSinglesQueueModal">Cancel</button>
         </div>
       </div>
@@ -415,6 +455,14 @@
       <div class="modal-card pairing-modal">
         <div class="section-title">Pair teams</div>
         <div class="subtitle">Drag players or tap two slots to swap.</div>
+        <div v-if="awaitingPresentNames.length" class="not-arrived">
+          <div class="not-arrived-text">
+            <strong>{{ awaitingPresentNames.join(', ') }}</strong>
+            {{ awaitingPresentNames.length === 1 ? "hasn't" : "haven't" }} arrived yet.
+            Mark {{ awaitingPresentNames.length === 1 ? 'them' : 'them all' }} present to queue this match.
+          </div>
+          <button class="button button-compact" @click="markPresentFromModal">✓ Mark present</button>
+        </div>
         <div class="pairing-grid">
           <div class="pairing-team">
             <div class="subtitle">Team A</div>
@@ -432,10 +480,18 @@
               <div
                 v-if="pairingOrder[slotIndex]"
                 class="pairing-pill"
-                :class="{ dragging: draggingPairIndex === slotIndex }"
+                :class="{
+                  dragging: draggingPairIndex === slotIndex,
+                  'not-arrived-pill': isAwaitingPresentId(pairingOrder[slotIndex])
+                }"
                 @pointerdown.prevent="onPairPointerDown(slotIndex, $event)"
               >
-                {{ playerNameById(pairingOrder[slotIndex]) }}
+                <span class="pairing-pill-name">{{ playerNameById(pairingOrder[slotIndex]) }}</span>
+                <span
+                  v-if="playerById(pairingOrder[slotIndex])?.skillLevel"
+                  class="card-skill"
+                  :class="skillClass(playerById(pairingOrder[slotIndex]))"
+                >{{ skillShort(playerById(pairingOrder[slotIndex])) }}</span>
               </div>
               <div v-else class="subtitle compact">Drop player</div>
             </div>
@@ -456,10 +512,18 @@
               <div
                 v-if="pairingOrder[slotIndex]"
                 class="pairing-pill"
-                :class="{ dragging: draggingPairIndex === slotIndex }"
+                :class="{
+                  dragging: draggingPairIndex === slotIndex,
+                  'not-arrived-pill': isAwaitingPresentId(pairingOrder[slotIndex])
+                }"
                 @pointerdown.prevent="onPairPointerDown(slotIndex, $event)"
               >
-                {{ playerNameById(pairingOrder[slotIndex]) }}
+                <span class="pairing-pill-name">{{ playerNameById(pairingOrder[slotIndex]) }}</span>
+                <span
+                  v-if="playerById(pairingOrder[slotIndex])?.skillLevel"
+                  class="card-skill"
+                  :class="skillClass(playerById(pairingOrder[slotIndex]))"
+                >{{ skillShort(playerById(pairingOrder[slotIndex])) }}</span>
               </div>
               <div v-else class="subtitle compact">Drop player</div>
             </div>
@@ -467,7 +531,11 @@
         </div>
         <div class="pairing-actions">
           <button class="button ghost button-compact" @click="closePairingModal">Cancel</button>
-          <button class="button button-compact" @click="confirmPairingAdd">Add to Queue</button>
+          <button
+            class="button button-compact"
+            :disabled="awaitingPresentNames.length > 0"
+            @click="confirmPairingAdd"
+          >Add to Queue</button>
         </div>
       </div>
     </div>
@@ -525,6 +593,14 @@
       <div class="modal-card">
         <h3>Queue pairs</h3>
         <div class="subtitle">Confirm this match pairing.</div>
+        <div v-if="awaitingTeamPresentNames.length" class="not-arrived">
+          <div class="not-arrived-text">
+            <strong>{{ awaitingTeamPresentNames.join(', ') }}</strong>
+            {{ awaitingTeamPresentNames.length === 1 ? "hasn't" : "haven't" }} arrived yet.
+            Mark {{ awaitingTeamPresentNames.length === 1 ? 'them' : 'them all' }} present to queue this match.
+          </div>
+          <button class="button button-compact" @click="markTeamMembersPresentFromModal">✓ Mark present</button>
+        </div>
         <div class="singles-match-row">
           <div v-if="teamQueueOrder[0]" class="singles-pill singles-pill-a">
             {{ teamNameById(teamQueueOrder[0]) }}
@@ -535,7 +611,7 @@
           </div>
         </div>
         <div class="grid two">
-          <button class="button" @click="confirmTeamQueueAdd">Add to Queue</button>
+          <button class="button" :disabled="awaitingTeamPresentNames.length > 0" @click="confirmTeamQueueAdd">Add to Queue</button>
           <button class="button ghost" @click="closeTeamQueueModal">Cancel</button>
         </div>
       </div>
@@ -788,10 +864,17 @@ const editPairingError = ref("");
 const editPairingIdleSearch = ref("");
 
 const AUTO_QUEUE_COOLDOWN_MS = 3 * 60 * 1000; // 3 minutes after last game
-// Statuses that mean a player is here and free to be picked. "present" is the
-// explicit "they're standing right here" confirmation, so it belongs even more
-// than plain checked_in; `away` and `done` deliberately don't.
-const AUTO_QUEUE_STATUSES = ["checked_in", "present"];
+// A player can only be queued once we know they're actually at the venue.
+// "present" is the explicit confirmation. checked_in on its own shows as
+// "Ready" and means registered but unconfirmed — until someone ticks Present
+// they don't get called. The exception is anyone who has already played: a
+// match is proof enough that they're here, and ending one puts them back on
+// checked_in, so without this the rotation would stall after the first round.
+function isQueueEligible(sp) {
+  if (!sp) return false;
+  if (sp.status === "present") return true;
+  return sp.status === "checked_in" && Boolean(sp.lastPlayedAt);
+}
 const PARTNER_HISTORY_LIMIT = 2; // recent partnerships tracked per player
 
 const skillLevels = ["Beginner", "Intermediate", "Advance", "Elite"];
@@ -965,8 +1048,61 @@ const filteredPlayers = computed(() => {
   });
 });
 
+// Selected players who still need confirming before they can be queued.
+const actionBarRef = ref(null);
+const actionBarVisible = ref(true);
+let actionBarObserver = null;
+
+// Float the actions only while the real bar is off screen. Watching the bar
+// itself, rather than a scroll threshold, means the two can never both show.
+// The action bar lives inside a v-if, so re-observe whenever it mounts.
+watch(
+  actionBarRef,
+  (el) => {
+    if (actionBarObserver) {
+      actionBarObserver.disconnect();
+      actionBarObserver = null;
+    }
+    if (!el || !window.IntersectionObserver) {
+      actionBarVisible.value = true;
+      return;
+    }
+    actionBarObserver = new IntersectionObserver(
+      ([entry]) => {
+        actionBarVisible.value = entry.isIntersecting;
+      },
+      { threshold: 0 }
+    );
+    actionBarObserver.observe(el);
+  },
+  { flush: "post" }
+);
+
+const showFloatingActions = computed(
+  () =>
+    sessionIsOpen.value &&
+    activeTab.value === "players" &&
+    selectedIds.value.length > 0 &&
+    !actionBarVisible.value &&
+    (allSelectedAwaitingPresent.value || canAdd.value)
+);
+
+const selectedAwaitingPresent = computed(() =>
+  selectedIds.value.filter((playerId) => isReadyForPresent(sessionPlayerMap.value.get(playerId)))
+);
+
+// Marking present is a Ready-player action, so the floating button only offers
+// it when every selected player is Ready. A mix of Ready and already-confirmed
+// players is cleanly neither action, so nothing floats.
+const allSelectedAwaitingPresent = computed(
+  () =>
+    selectedIds.value.length > 0 &&
+    selectedAwaitingPresent.value.length === selectedIds.value.length
+);
+
 const canAdd = computed(() => {
   if (!session.value || !sessionIsOpen.value) return false;
+  if (selectedAwaitingPresent.value.length) return false;
   return selectedIds.value.length === selectionLimit.value;
 });
 // Fairness, in the order players actually argue about it: fewest games first,
@@ -990,7 +1126,7 @@ const availableCandidates = computed(() => {
   return sessionPlayers.value
     .filter((sp) => sp?.player)
     .filter((sp) => {
-      if (!AUTO_QUEUE_STATUSES.includes(sp.status)) return false;
+      if (!isQueueEligible(sp)) return false;
       return !playingIds.value.has(sp.playerId) && !queuedIds.value.has(sp.playerId);
     })
     .map((sp) => {
@@ -1014,6 +1150,39 @@ const availableCandidates = computed(() => {
       };
     })
     .sort(byFairness);
+});
+
+// Map<playerId, Set<partnerId>> — last PARTNER_HISTORY_LIMIT partners per player
+const recentPartnersMap = computed(() => {
+  const map = new Map();
+  const playerSeen = new Map();
+  const ended = [...matches.value]
+    .filter((m) => m.status === "ended" && m.matchType === "doubles")
+    .reverse(); // newest first
+  for (const match of ended) {
+    const participants = match.participants || [];
+    for (const teamNum of [1, 2]) {
+      const pair = participants
+        .filter((p) => p.teamNumber === teamNum)
+        .map((p) => p.playerId)
+        .filter(Boolean);
+      if (pair.length !== 2) continue;
+      const [p1, p2] = pair;
+      const seen1 = playerSeen.get(p1) || 0;
+      const seen2 = playerSeen.get(p2) || 0;
+      if (seen1 < PARTNER_HISTORY_LIMIT) {
+        if (!map.has(p1)) map.set(p1, new Set());
+        map.get(p1).add(p2);
+        playerSeen.set(p1, seen1 + 1);
+      }
+      if (seen2 < PARTNER_HISTORY_LIMIT) {
+        if (!map.has(p2)) map.set(p2, new Set());
+        map.get(p2).add(p1);
+        playerSeen.set(p2, seen2 + 1);
+      }
+    }
+  }
+  return map;
 });
 
 // Players who have had their breather. The normal pool.
@@ -1042,12 +1211,23 @@ const autoQueueHint = computed(() => {
   return `Need ${short} more player${short === 1 ? "" : "s"} — ${autoQueuePool.value.length} free`;
 });
 
+// Members of the selected pairs who still need confirming at the venue.
+const selectedTeamsAwaitingPresent = computed(() => {
+  const teamMap = new Map(teamOptions.value.map((team) => [team.id, team]));
+  return selectedTeamIds.value
+    .flatMap((id) => teamMap.get(id)?.memberIds || [])
+    .filter((playerId) => isReadyForPresent(sessionPlayerMap.value.get(playerId)));
+});
+
 const canAddTeams = computed(
   () =>
     session.value &&
     sessionIsOpen.value &&
     sessionGameType.value === "doubles" &&
-    selectedTeamIds.value.length === 2
+    selectedTeamIds.value.length === 2 &&
+    // Same gate as the player path: a pair containing an unconfirmed "Ready"
+    // player can't be queued either.
+    selectedTeamsAwaitingPresent.value.length === 0
 );
 
 const queueMatchCount = computed(() => queueMatches.value.length);
@@ -1067,7 +1247,9 @@ const editPairingIdlePlayers = computed(() => {
   });
   return sessionPlayers.value
     .filter((sp) => {
-      if (!["checked_in", "present"].includes(sp.status)) return false;
+      // Same gate as the queue: an unconfirmed "Ready" player can't be swapped
+      // into a match either.
+      if (!isQueueEligible(sp)) return false;
       if (playingIds.value.has(sp.playerId)) return false;
       if (queuedElsewhere.has(sp.playerId)) return false;
       if (inSlots.has(sp.playerId)) return false;
@@ -1164,9 +1346,7 @@ function isReadyForPresent(sp) {
 }
 
 const showMarkPresent = computed(
-  () =>
-    sessionIsOpen.value &&
-    selectedIds.value.some((playerId) => isReadyForPresent(sessionPlayerMap.value.get(playerId)))
+  () => sessionIsOpen.value && selectedAwaitingPresent.value.length > 0
 );
 const duplicateWarningText = computed(() => {
   if (!duplicateWarningNames.value.length) {
@@ -1762,6 +1942,12 @@ async function addToQueue() {
   queueError.value = "";
   removeError.value = "";
   presentError.value = "";
+  const awaiting = selectedAwaitingPresent.value;
+  if (awaiting.length) {
+    const who = awaiting.map((id) => playerMap.value.get(id)?.nickname || playerMap.value.get(id)?.fullName || "?");
+    queueError.value = `Mark ${who.join(", ")} present first — they haven't checked in at the venue yet.`;
+    return;
+  }
   if (selectedIds.value.length !== selectionLimit.value) {
     queueError.value = `Select ${selectionLimit.value} players.`;
     return;
@@ -2386,6 +2572,14 @@ async function enqueueSelectedTeams(teamIds = selectedTeamIds.value) {
   const teams = teamIds.map((id) => teamMap.get(id)).filter(Boolean);
   const allPlayers = teams.flatMap((team) => team.memberIds || []);
   if (!allPlayers.length) return;
+  const awaiting = allPlayers.filter((playerId) =>
+    isReadyForPresent(sessionPlayerMap.value.get(playerId))
+  );
+  if (awaiting.length) {
+    const who = awaiting.map((id) => playerNameById(id));
+    queueError.value = `Mark ${who.join(", ")} present first — they haven't checked in at the venue yet.`;
+    return;
+  }
   await ensureCheckedIn(allPlayers);
   for (const team of teams) {
     if (!team.memberIds || team.memberIds.length < 2) continue;
@@ -2630,6 +2824,48 @@ function cleanupPairDrag(event) {
 function playerNameById(id) {
   const player = playerMap.value.get(id);
   return player ? player.nickname || player.fullName : "Unknown";
+}
+
+function isAwaitingPresentId(playerId) {
+  return isReadyForPresent(sessionPlayerMap.value.get(playerId));
+}
+
+// Names of the selected players who haven't been confirmed at the venue yet.
+const awaitingPresentNames = computed(() =>
+  selectedAwaitingPresent.value.map((id) => playerNameById(id))
+);
+
+const awaitingTeamPresentNames = computed(() =>
+  selectedTeamsAwaitingPresent.value.map((id) => playerNameById(id))
+);
+
+// Marking present from inside a queue modal must not wipe the selection the
+// modal is built from, or the modal closes under the user mid-fix.
+async function markPresentFromModal() {
+  await markPresentIds(selectedAwaitingPresent.value);
+}
+
+// The team modal's players come from the selected pairs, not from selectedIds.
+async function markTeamMembersPresentFromModal() {
+  await markPresentIds(selectedTeamsAwaitingPresent.value);
+}
+
+async function markPresentIds(playerIds) {
+  if (!session.value || !sessionIsOpen.value || !playerIds.length) return;
+  presentError.value = "";
+  try {
+    for (const playerId of playerIds) {
+      await api.presentPlayer(playerId, { sessionId: session.value.id });
+    }
+    await load();
+  } catch (err) {
+    presentError.value = err.message || "Unable to mark present";
+  }
+}
+
+// The pairing modals work in ids, and the skill badge helpers take a player.
+function playerById(id) {
+  return playerMap.value.get(id) || null;
 }
 
 function playerTeamIdById(playerId) {
@@ -2997,6 +3233,10 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  if (actionBarObserver) {
+    actionBarObserver.disconnect();
+    actionBarObserver = null;
+  }
   if (timerId) clearInterval(timerId);
   document.body.style.overflow = "";
   cleanupPairDrag();
@@ -3037,11 +3277,91 @@ onUnmounted(() => {
   margin-top: -25px;
 }
 
+.not-arrived {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 10px 0 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(217, 119, 6, 0.10);
+  border: 1px solid rgba(217, 119, 6, 0.28);
+}
+
+.not-arrived-text {
+  flex: 1;
+  min-width: 160px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* Which of the four it is, so the notice doesn't send you hunting. */
+.pairing-pill.not-arrived-pill {
+  background: rgba(217, 119, 6, 0.18);
+  color: #92400e;
+  box-shadow: inset 0 0 0 1px rgba(217, 119, 6, 0.45);
+}
+
+/* ── Floating actions ────────────────────────────────────────────── */
+.floating-actions {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  /* Clear of the fixed mobile nav; under it and under modals in the stack. */
+  bottom: 88px;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.18);
+}
+
+.floating-count {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.float-pop-enter-active,
+.float-pop-leave-active {
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.float-pop-enter-from,
+.float-pop-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+@media (min-width: 880px) {
+  .floating-actions {
+    left: auto;
+    right: 24px;
+    bottom: 24px;
+    width: auto;
+  }
+}
+
 /* ── Tab bar (underline tabs) ────────────────────────────────────── */
 .players-tab-bar {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   border-bottom: 1px solid var(--border);
+  /* Stays put while the roster scrolls, parked directly under the sticky app
+     header. --header-h is measured in App.vue; the fallback is the mobile
+     height in case a page renders before the first measurement. */
+  position: sticky;
+  top: var(--header-h, 69px);
+  z-index: 40;
+  /* Opaque, or the list shows through as it scrolls underneath. The strip was
+     transparent while it scrolled away with the content. */
+  background: var(--bg-0);
 }
 
 .players-tab {
@@ -3059,9 +3379,7 @@ onUnmounted(() => {
   /* The active underline sits on the row's hairline divider. */
   border-bottom: 2.5px solid transparent;
   margin-bottom: -1px;
-  border-top-left-radius: var(--radius-sm);
-  border-top-right-radius: var(--radius-sm);
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  transition: color 0.15s, border-color 0.15s;
 }
 
 .players-tab:hover {
@@ -3069,10 +3387,11 @@ onUnmounted(() => {
 }
 
 .players-tab.active {
+  /* No fill — the accent underline plus the colour and weight shift carry it,
+     which also keeps the strip flat now that it stays pinned while scrolling. */
   color: var(--accent);
   border-bottom-color: var(--accent);
-  /* Soft accent tint behind the active tab, capped by the underline. */
-  background: rgba(15, 157, 138, 0.1);
+  font-weight: 700;
 }
 
 .tab-badge {

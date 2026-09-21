@@ -1,6 +1,6 @@
 <template>
   <div class="app-shell" :class="{ 'bracket-shell': route.path === '/tournament' || route.path === '/pairing' }">
-    <header v-if="!route.meta.hideHeader" class="header">
+    <header v-if="!route.meta.hideHeader" ref="headerRef" class="header">
       <div class="brand">
         <img src="./assets/KuePro.png" alt="KuePro" class="brand-logo" />
         <span v-if="showProfile" class="brand-session">{{ brandSessionLabel }}</span>
@@ -471,6 +471,17 @@ import {
 import GameLoadingModal from "./components/GameLoadingModal.vue";
 
 // Create session modal state
+const headerRef = ref(null);
+let headerObserver = null;
+
+// The header is sticky, so anything else that sticks has to start below it.
+// Measured rather than hardcoded: its height differs between the mobile and
+// desktop layouts, and would drift again if the logo or padding changed.
+function syncHeaderHeight() {
+  const h = headerRef.value?.getBoundingClientRect().height || 0;
+  document.documentElement.style.setProperty("--header-h", `${Math.round(h)}px`);
+}
+
 const showCreateSession = ref(false);
 const newSessionName = ref("");
 const newSessionNameInput = ref(null);
@@ -983,9 +994,23 @@ onMounted(() => {
   modalObserver = new MutationObserver(syncModalScrollLock);
   modalObserver.observe(document.body, { childList: true, subtree: true });
   syncModalScrollLock();
+  syncHeaderHeight();
+  // The header grows and shrinks between breakpoints, so re-measure instead of
+  // trusting the first reading.
+  if (window.ResizeObserver && headerRef.value) {
+    headerObserver = new ResizeObserver(syncHeaderHeight);
+    headerObserver.observe(headerRef.value);
+  } else {
+    window.addEventListener("resize", syncHeaderHeight);
+  }
 });
 
 onUnmounted(() => {
+  if (headerObserver) {
+    headerObserver.disconnect();
+    headerObserver = null;
+  }
+  window.removeEventListener("resize", syncHeaderHeight);
   if (loadingTimer) {
     window.clearTimeout(loadingTimer);
     loadingTimer = null;

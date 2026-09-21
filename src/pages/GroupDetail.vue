@@ -29,34 +29,10 @@
           <button class="button ghost button-compact" @click="openAddPlayerModal">+ New Player</button>
         </div>
 
-        <div class="add-member-wrap">
-          <input
-            class="input"
-            v-model="addSearch"
-            placeholder="Search players to add…"
-            autocomplete="off"
-            @focus="showAddResults = true"
-            @blur="onAddSearchBlur"
-          />
-          <div v-if="showAddResults && addSearch.trim()" class="add-member-dropdown">
-            <button
-              v-for="player in addSearchResults"
-              :key="player.id"
-              class="add-member-option"
-              @mousedown.prevent="addMember(player)"
-            >
-              <span>{{ player.nickname || player.fullName }}</span>
-              <span v-if="player.skillLevel" class="add-member-skill">{{ player.skillLevel }}</span>
-            </button>
-            <p v-if="addSearchResults.length === 0" class="add-member-empty">
-              No players found on the workspace roster.
-            </p>
-          </div>
-        </div>
 
         <p v-if="members.length === 0" class="empty-hint">
-          No members yet. Search for players already on your roster, add a new one, or share the
-          invite link so they add themselves.
+          No members yet. Add a new player, or share the invite link so they add
+          themselves.
         </p>
         <div v-else class="member-list">
           <div v-for="member in members" :key="member.id" class="member-row">
@@ -199,9 +175,6 @@ const inviteLink = ref(null);
 const appBaseUrl = ref("");
 const loading = ref(true);
 
-const allPlayers = ref([]);
-const addSearch = ref("");
-const showAddResults = ref(false);
 const membersError = ref("");
 
 const skillLevels = ["Beginner", "Intermediate", "Advance", "Elite"];
@@ -233,23 +206,10 @@ const showToast = ref(false);
 const toastMessage = ref("");
 let toastTimer = null;
 
-const memberIds = computed(() => new Set(members.value.map((m) => m.playerId)));
-
 const inviteUrl = computed(() => {
   if (!inviteLink.value) return "";
   const base = appBaseUrl.value || window.location.origin;
   return `${base}/g/${inviteLink.value.token}`;
-});
-
-const addSearchResults = computed(() => {
-  const term = addSearch.value.trim().toLowerCase();
-  if (!term) return [];
-  return allPlayers.value
-    .filter((p) => !memberIds.value.has(p.id))
-    .filter((p) =>
-      `${p.fullName || ""} ${p.nickname || ""}`.toLowerCase().includes(term)
-    )
-    .slice(0, 8);
 });
 
 // Indexed once per change instead of scanned per row: the roster template asks
@@ -303,11 +263,6 @@ async function load() {
 }
 
 async function loadSupporting() {
-  try {
-    allPlayers.value = await api.listPlayers();
-  } catch {
-    allPlayers.value = [];
-  }
   if (!selectedSessionId.value) return;
   try {
     sessionPlayers.value = await api.sessionPlayers(selectedSessionId.value);
@@ -320,24 +275,6 @@ async function loadSupporting() {
 // in context. Hand off with the group preselected so it's still one trip.
 function goToSession() {
   router.push({ path: "/players", query: { group: groupId } });
-}
-
-function onAddSearchBlur() {
-  setTimeout(() => {
-    showAddResults.value = false;
-  }, 120);
-}
-
-async function addMember(player) {
-  membersError.value = "";
-  try {
-    const updated = await api.addGroupMembers(groupId, { playerIds: [player.id] });
-    members.value = updated.members || [];
-    addSearch.value = "";
-    triggerToast(`${player.nickname || player.fullName} added`);
-  } catch (err) {
-    membersError.value = err.message || "Unable to add member";
-  }
 }
 
 function openAddPlayerModal() {
@@ -370,7 +307,6 @@ async function createPlayerInGroup() {
     });
     const updated = await api.addGroupMembers(groupId, { playerIds: [created.id] });
     members.value = updated.members || [];
-    allPlayers.value = await api.listPlayers();
     showAddPlayerModal.value = false;
     triggerToast(`${created.nickname || created.fullName} added`);
   } catch (err) {
@@ -586,57 +522,12 @@ onBeforeUnmount(() => {
 }
 
 /* ── Roster ──────────────────────────────────────────────────────── */
-.add-member-wrap {
-  position: relative;
-}
 
-.add-member-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  z-index: 20;
-  background: #ffffff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow);
-  overflow: hidden;
-}
 
-.add-member-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-  padding: 11px 12px;
-  background: none;
-  border: none;
-  border-bottom: 1px solid var(--border);
-  font-size: 15px;
-  text-align: left;
-  cursor: pointer;
-}
 
-.add-member-option:last-child {
-  border-bottom: none;
-}
 
-.add-member-option:hover {
-  background: rgba(0, 0, 0, 0.03);
-}
 
-.add-member-skill {
-  font-size: 13px;
-  color: var(--ink-soft);
-}
 
-.add-member-empty {
-  margin: 0;
-  padding: 12px;
-  font-size: 14px;
-  color: var(--ink-soft);
-}
 
 /* Two columns so a long roster stays scannable without a long scroll. */
 .member-list {
