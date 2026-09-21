@@ -488,13 +488,13 @@ onUnmounted(() => {
   height: 36px;
   padding: 0;
   border-radius: 50%;
-  border: 1px solid var(--border, #e0e0e0);
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--card);
   color: var(--ink-soft);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
-.pf-refresh-btn:hover { background: #f1f5f9; color: var(--ink); }
+.pf-refresh-btn:hover { background: var(--bg-1); color: var(--ink); }
 .pf-refresh-btn:disabled { cursor: default; }
 .pf-refresh-btn svg { width: 18px; height: 18px; }
 .pf-refresh-btn.spinning svg { animation: pf-spin 0.7s linear infinite; }
@@ -539,8 +539,8 @@ onUnmounted(() => {
 .pf-list {
   display: grid;
   grid-template-columns: 1fr;
-  background: #fff;
-  border: 1px solid var(--border, #e0e0e0);
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm, 12px);
   overflow: hidden;
 }
@@ -549,13 +549,13 @@ onUnmounted(() => {
   .pf-list {
     grid-template-columns: repeat(2, 1fr);
     gap: 1px;
-    background: var(--border, #e0e0e0);
+    background: var(--border);
   }
   .pf-row {
-    background: #fff;
+    background: var(--card);
     border-bottom: none;
   }
-  .pf-row.row-paid { background: #f8fffe; }
+  .pf-row.row-paid { background: rgba(0, 137, 123, 0.08); }
 }
 
 @media (min-width: 1080px) {
@@ -592,7 +592,7 @@ onUnmounted(() => {
 .pf-row.row-outstanding:active { background: rgba(21,101,192,0.04); }
 .pf-row.row-rejected:active  { background: rgba(180,95,95,0.04); }
 .pf-row.row-waitlisted:active { background: rgba(245,158,11,0.05); }
-.pf-row.row-paid { background: #f8fffe; }
+.pf-row.row-paid { background: rgba(0, 137, 123, 0.08); }
 
 /* Waitlisted with no open slot — not actionable */
 .pf-row.row-locked { cursor: not-allowed; opacity: 0.6; }
@@ -648,8 +648,8 @@ onUnmounted(() => {
 .pf-filter-chip {
   padding: 6px 12px;
   border-radius: 999px;
-  border: 1px solid var(--border, #e0e0e0);
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--card);
   color: var(--ink-soft);
   font-size: 13px;
   font-weight: 600;
@@ -732,7 +732,8 @@ onUnmounted(() => {
 }
 
 .pf-modal {
-  background: #fff;
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 24px 20px;
   width: 100%;
@@ -800,7 +801,8 @@ onUnmounted(() => {
 
 /* Lightbox */
 .pf-lightbox {
-  background: #fff;
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 16px;
   display: flex;

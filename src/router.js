@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
+import Landing from "./pages/Landing.vue";
 import Login from "./pages/Login.vue";
 import Register from "./pages/Register.vue";
 import Dashboard from "./pages/Dashboard.vue";
@@ -26,8 +27,10 @@ import ForgotPassword from "./pages/ForgotPassword.vue";
 import ResetPassword from "./pages/ResetPassword.vue";
 
 const routes = [
-  { path: "/login", component: Login, meta: { public: true, hideHeader: true } },
-  { path: "/register", component: Register, meta: { public: true, hideHeader: true } },
+  { path: "/landing", component: Landing, meta: { public: true, hideHeader: true, landing: true } },
+  { path: "/welcome", redirect: "/landing" },
+  { path: "/login", component: Login, meta: { public: true, hideHeader: true, auth: true } },
+  { path: "/register", component: Register, meta: { public: true, hideHeader: true, auth: true } },
   { path: "/p/:token", component: PublicPlayer, meta: { public: true } },
   { path: "/fees/:token", component: PublicFees, meta: { public: true, hideHeader: true } },
   { path: "/q/:token", component: PublicQueue, meta: { public: true, hideHeader: true } },
@@ -36,7 +39,7 @@ const routes = [
   { path: "/board/:sessionId", component: PublicBoard, meta: { public: true } },
   { path: "/check-email", component: CheckEmail, meta: { public: true } },
   { path: "/verify", component: VerifyEmail, meta: { public: true } },
-  { path: "/forgot-password", component: ForgotPassword, meta: { public: true } },
+  { path: "/forgot-password", component: ForgotPassword, meta: { public: true, hideHeader: true, auth: true } },
   { path: "/reset-password", component: ResetPassword, meta: { public: true } },
   { path: "/", component: Dashboard },
   { path: "/players", component: Players },
@@ -63,10 +66,11 @@ router.beforeEach((to) => {
   if (to.meta.public) return true;
   const token = localStorage.getItem("token");
   if (!token) {
+    if (to.path === "/") {
+      return "/landing";
+    }
     // Preserve where the user was headed so we can return after login.
-    return to.fullPath && to.fullPath !== "/"
-      ? { path: "/login", query: { redirect: to.fullPath } }
-      : "/login";
+    return { path: "/login", query: { redirect: to.fullPath } };
   }
   return true;
 });

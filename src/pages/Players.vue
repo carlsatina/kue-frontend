@@ -97,7 +97,10 @@
                     <strong class="player-name-text">{{ player.nickname || player.fullName }}</strong>
                   </div>
                 </div>
-                <span class="status-pill" :class="statusClass(player)">{{ statusLabel(player) }}</span>
+                <div class="player-card-badges">
+                  <span v-if="sessionIsOpen && selectedIds.includes(player.id)" class="select-check-badge" aria-label="Selected">✓</span>
+                  <span class="status-pill" :class="statusClass(player)">{{ statusLabel(player) }}</span>
+                </div>
               </div>
               <p class="card-meta">
                 G: {{ gamesPlayed(player.id) }}
@@ -205,7 +208,10 @@
                   <span v-if="team.teamColor" class="team-color" :style="{ backgroundColor: team.teamColor }"></span>
                   <span>{{ team.displayName }}</span>
                 </div>
-                <span v-if="team.status" class="team-status-pill" :class="team.status.toLowerCase()">{{ team.status }}</span>
+                <div class="team-select-badges">
+                  <span v-if="selectedTeamIds.includes(team.id)" class="select-check-badge" aria-label="Selected">✓</span>
+                  <span v-if="team.status" class="team-status-pill" :class="team.status.toLowerCase()">{{ team.status }}</span>
+                </div>
               </div>
               <div class="team-select-members">
                 <span v-if="team.source === 'auto'" class="team-select-pill auto">Auto</span>
@@ -529,7 +535,7 @@
             >
               <div
                 v-if="pairingOrder[slotIndex]"
-                class="pairing-pill"
+                class="pairing-pill pairing-pill-b"
                 :class="{
                   dragging: draggingPairIndex === slotIndex,
                   'not-arrived-pill': isAwaitingPresentId(pairingOrder[slotIndex])
@@ -3336,6 +3342,12 @@ onUnmounted(() => {
   box-shadow: inset 0 0 0 1px rgba(217, 119, 6, 0.45);
 }
 
+:global([data-theme="dark"]) .pairing-pill.not-arrived-pill {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.45);
+}
+
 /* ── Floating actions ────────────────────────────────────────────── */
 .floating-actions {
   position: fixed;
@@ -3349,7 +3361,7 @@ onUnmounted(() => {
   gap: 8px;
   padding: 10px 12px;
   border-radius: 14px;
-  background: #ffffff;
+  background: var(--card);
   border: 1px solid var(--border);
   box-shadow: 0 8px 28px rgba(15, 23, 42, 0.18);
 }
@@ -3528,6 +3540,26 @@ onUnmounted(() => {
   color: #b26a00;
 }
 
+:global([data-theme="dark"]) .card-skill.beginner {
+  background: rgba(148, 163, 184, 0.16);
+  color: #cbd5e1;
+}
+
+:global([data-theme="dark"]) .card-skill.intermediate {
+  background: rgba(56, 189, 248, 0.18);
+  color: #7dd3fc;
+}
+
+:global([data-theme="dark"]) .card-skill.advance {
+  background: rgba(52, 211, 153, 0.18);
+  color: #6ee7b7;
+}
+
+:global([data-theme="dark"]) .card-skill.elite {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fde047;
+}
+
 /* ── Action bar ──────────────────────────────────────────────────── */
 .action-bar {
   display: flex;
@@ -3661,7 +3693,7 @@ onUnmounted(() => {
   height: 28px;
   border-radius: 6px;
   border: 1.5px solid var(--border);
-  background: white;
+  background: var(--card);
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -3701,7 +3733,7 @@ onUnmounted(() => {
   overflow-y: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: #fff;
+  background: var(--card);
 }
 
 .idle-player-row {
@@ -3731,6 +3763,11 @@ onUnmounted(() => {
 .idle-player-row.can-replace:hover {
   background: rgba(15, 157, 138, 0.1);
   color: var(--accent);
+}
+
+:global([data-theme="dark"]) .idle-player-row.can-replace:hover {
+  background: rgba(56, 189, 248, 0.14);
+  color: #38bdf8;
 }
 
 .edit-pairing-actions {

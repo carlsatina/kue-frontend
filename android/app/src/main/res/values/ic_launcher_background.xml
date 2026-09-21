@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#95D726</color>
+    <!-- The logo is blue, teal and orange with dark linework, so it needs a
+         light backing; the previous lime green fought it. -->
+    <color name="ic_launcher_background">#FFFFFF</color>
 </resources>

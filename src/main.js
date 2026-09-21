@@ -2,6 +2,9 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import router from "./router.js";
 import "./styles.css";
+import { initTheme } from "./state/themeStore.js";
+
+initTheme();
 
 const umamiSrc = import.meta.env.VITE_UMAMI_SRC;
 const umamiId = import.meta.env.VITE_UMAMI_WEBSITE_ID;

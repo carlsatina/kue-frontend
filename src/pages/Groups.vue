@@ -189,7 +189,7 @@ onMounted(load);
   align-items: center;
   gap: 12px;
   padding: 14px;
-  background: #ffffff;
+  background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   text-align: left;

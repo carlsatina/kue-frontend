@@ -286,6 +286,7 @@ import { api, withLoadingScope } from "../api.js";
 import { loadManualTeams, saveManualTeams } from "../utils/teamBuilder.js";
 import { SEED_MATCH_ID, applySeedOrder, extractSeedOrder } from "../utils/seedOrder.js";
 import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.js";
+import { resolvedTheme } from "../state/themeStore.js";
 
 function openCreateSession() {
   document.dispatchEvent(new Event("createSession:open"));
@@ -324,15 +325,18 @@ const seedBracketTypes = ["single", "double", "round_robin"];
 let seedDragState = null;
 const DEFAULT_BRACKET_STORAGE_KEY = "kue:bracket-default:";
 
-const bracketVisuals = {
-  format: "default",
-  textColor: "#1f1c17",
-  titleColor: "#5b5248",
-  teamBackgroundColor: "transparent",
-  highlightTeamBackgroundColor: "rgba(15, 157, 138, 0.08)",
-  scoreBackgroundColor: "#5c9cff",
-  winnerScoreBackgroundColor: "#5c9cff"
-};
+const bracketVisuals = computed(() => {
+  const isDark = resolvedTheme.value === "dark";
+  return {
+    format: "default",
+    textColor: isDark ? "#f1f5f9" : "#1f1c17",
+    titleColor: isDark ? "#94a3b8" : "#5b5248",
+    teamBackgroundColor: isDark ? "rgba(30, 41, 59, 0.75)" : "transparent",
+    highlightTeamBackgroundColor: isDark ? "rgba(56, 189, 248, 0.22)" : "rgba(15, 157, 138, 0.08)",
+    scoreBackgroundColor: isDark ? "#0284c7" : "#5c9cff",
+    winnerScoreBackgroundColor: isDark ? "#059669" : "#00897b"
+  };
+});
 
 const joinedPlayers = computed(() => {
   return sessionPlayers.value
@@ -1444,6 +1448,12 @@ watch(showSeedModal, (isOpen) => {
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
+}
+
+:global([data-theme="dark"]) .info-chip {
+  background: rgba(56, 189, 248, 0.14);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.25);
 }
 
 /* ── Settings strip ──────────────────────────────────────────────── */

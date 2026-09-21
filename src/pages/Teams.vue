@@ -257,7 +257,7 @@ onMounted(load);
   align-items: center;
   gap: 12px;
   padding: 14px;
-  background: #ffffff;
+  background: var(--card);
   border: 1px solid var(--border);
   border-left: 4px solid var(--team-color, var(--border));
   border-radius: var(--radius-sm);

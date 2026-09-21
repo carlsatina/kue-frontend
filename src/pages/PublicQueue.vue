@@ -278,6 +278,7 @@ import { useRoute } from "vue-router";
 import CourtFloor from "../components/CourtFloor.vue";
 import { formatSessionSchedule, formatSessionLocation } from "../utils/sessionSchedule.js";
 import { formatUpdatedAgo } from "../utils/freshness.js";
+import { resolvedTheme } from "../state/themeStore.js";
 
 const route = useRoute();
 const data = ref({});
@@ -314,15 +315,18 @@ const bracketPlayers = ref([]);
 const bracketMatches = ref([]);
 const bracketOverrides = ref([]);
 const bracketType = ref("single");
-const bracketVisuals = {
-  format: "default",
-  textColor: "#1e293b",
-  titleColor: "#64748b",
-  teamBackgroundColor: "transparent",
-  highlightTeamBackgroundColor: "rgba(21, 101, 192, 0.08)",
-  scoreBackgroundColor: "#1565c0",
-  winnerScoreBackgroundColor: "#00897b"
-};
+const bracketVisuals = computed(() => {
+  const isDark = resolvedTheme.value === "dark";
+  return {
+    format: "default",
+    textColor: isDark ? "#f1f5f9" : "#1e293b",
+    titleColor: isDark ? "#94a3b8" : "#64748b",
+    teamBackgroundColor: isDark ? "rgba(30, 41, 59, 0.75)" : "transparent",
+    highlightTeamBackgroundColor: isDark ? "rgba(56, 189, 248, 0.22)" : "rgba(21, 101, 192, 0.08)",
+    scoreBackgroundColor: isDark ? "#0284c7" : "#1565c0",
+    winnerScoreBackgroundColor: isDark ? "#059669" : "#00897b"
+  };
+});
 
 const bracketMatchFormat = computed(() => bracketSession.value?.gameType || "doubles");
 
@@ -1269,7 +1273,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
-  background: #f0f4f8;
+  background: var(--bg-0);
   margin-bottom: -80px; /* cancel app-shell bottom padding for mobile nav */
 }
 
@@ -1522,8 +1526,8 @@ onUnmounted(() => {
 }
 
 .court-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 14px;
   display: flex;
@@ -1545,7 +1549,7 @@ onUnmounted(() => {
 
 .court-name {
   font-size: 15px;
-  color: #1e293b;
+  color: var(--ink);
 }
 
 .court-status-badge {
@@ -1553,8 +1557,8 @@ onUnmounted(() => {
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--bg-1);
+  color: var(--ink-soft);
 }
 
 .court-status-badge.live {
@@ -1595,8 +1599,8 @@ onUnmounted(() => {
 }
 
 .queue-item {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 12px 14px;
   display: flex;
@@ -1620,13 +1624,13 @@ onUnmounted(() => {
 .queue-type {
   font-size: 12px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--ink-soft);
   flex: 1;
 }
 
 .queue-time {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--ink-soft);
 }
 
 .queue-matchup {
@@ -1639,16 +1643,16 @@ onUnmounted(() => {
 .queue-team {
   font-size: 14px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--ink);
 }
 
 .queue-vs-pill {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: var(--ink-soft);
   padding: 2px 6px;
-  background: #f1f5f9;
+  background: var(--bg-1);
   border-radius: 4px;
 }
 
@@ -1751,11 +1755,11 @@ onUnmounted(() => {
 }
 
 :deep(.bracket-modal) {
-  background: linear-gradient(180deg, #f0f4f8 0%, #e8f0fb 100%);
+  background: var(--card);
 }
 
 :deep(.bracket-modal-head) {
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
   padding-bottom: 14px;
   margin-bottom: 4px;
 }
@@ -1770,7 +1774,7 @@ onUnmounted(() => {
   font-size: 20px;
   font-weight: 800;
   margin: 0;
-  color: #1e293b;
+  color: var(--ink);
 }
 
 /* ── Bracket modal extras ────────────────────────────────────────── */

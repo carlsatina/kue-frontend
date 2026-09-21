@@ -298,6 +298,10 @@ function logout() {
   color: #166534;
 }
 
+:global([data-theme="dark"]) .pill { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; }
+:global([data-theme="dark"]) .pill.neutral { background: rgba(255, 255, 255, 0.08); color: var(--ink-soft); }
+:global([data-theme="dark"]) .pill.success { background: rgba(34, 197, 94, 0.18); color: #4ade80; }
+
 .profile-form {
   display: flex;
   flex-direction: column;
@@ -315,6 +319,9 @@ function logout() {
   background: #dcfce7;
   color: #166534;
 }
+
+:global([data-theme="dark"]) .notice { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
+:global([data-theme="dark"]) .notice.ok { background: rgba(34, 197, 94, 0.18); color: #4ade80; }
 
 .profile-logout-hint {
   margin-bottom: 2px;

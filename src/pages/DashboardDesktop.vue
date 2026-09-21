@@ -19,7 +19,14 @@
         </div>
         <div class="panel-head">
           <span class="panel-title">Courts</span>
-          <button class="link-btn" @click="showAddCourt = true">+ Add court</button>
+          <div class="panel-actions">
+            <button class="pill-btn" :class="{ 'pill-btn-copied': inviteCopied }" @click="createInviteLink">
+              <svg v-if="inviteCopied" viewBox="0 0 24 24" width="13" height="13"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg v-else viewBox="0 0 24 24" width="13" height="13"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              {{ inviteCopied ? "Link Copied!" : "Share Link" }}
+            </button>
+            <button class="pill-btn pill-btn-accent" @click="showAddCourt = true">+ Add court</button>
+          </div>
         </div>
 
         <div v-if="!session" class="empty-hint">
@@ -155,6 +162,26 @@
       </div>
     </div>
   </div>
+  <div v-if="showInviteLink" class="modal-backdrop">
+    <div class="modal-card">
+      <h3>Session Share Link</h3>
+      <div class="subtitle">Share this link so players can view the live queue and games.</div>
+      <div class="share-link">
+        <input class="input" readonly :value="inviteLink" />
+        <button class="button ghost button-compact" :class="{ active: inviteCopied }" @click="copyInviteLink">
+          {{ inviteCopied ? "Copied" : "Copy" }}
+        </button>
+      </div>
+      <button class="button ghost" @click="closeInviteLink">Close</button>
+    </div>
+  </div>
+  <div v-if="showInviteWarning" class="modal-backdrop">
+    <div class="modal-card">
+      <h3>Session needed</h3>
+      <div class="subtitle">Create and open a session before generating a share link.</div>
+      <button class="button" @click="closeInviteWarning">OK</button>
+    </div>
+  </div>
   </div>
 </template>
 
@@ -170,11 +197,13 @@ const {
   showEditCourt, editCourtName, editCourtNotes, editCourtError,
   showDeleteCourt, deleteCourtName, deleteCourtError,
   showEndMatch, endMatchError, endMatchTeams, endMatchScoreA, endMatchScoreB,
+  showInviteLink, inviteLink, inviteCopied, showInviteWarning,
   createCourt, closeAddCourt,
   openEditCourt, updateCourt, closeEditCourt,
   deleteCourt, confirmDeleteCourt, closeDeleteCourt,
   openEndMatch, closeEndMatch, finishMatch,
   cancelMatch,
+  createInviteLink, copyInviteLink, closeInviteLink, closeInviteWarning,
   goToPlayers,
   teamNames, elapsedTime,
   courtStatusLabel, courtDotClass,
@@ -212,13 +241,14 @@ function courtState(court) {
 <style scoped>
 /* ── Variables ────────────────────────────────────── */
 .desk {
-  --blue: #1565c0;
-  --teal: #00897b;
-  --teal-light: #ccfbf1;
-  --text: #0f172a;
-  --text-soft: #475569;
-  --danger: #b91c1c;
-  --border: #cbd5e1;
+  --blue: var(--accent, #1565c0);
+  --teal: var(--accent-2, #00897b);
+  --teal-light: rgba(0, 137, 123, 0.15);
+  --text: var(--ink, #0f172a);
+  --text-soft: var(--ink-soft, #475569);
+  --danger: var(--accent-3, #b91c1c);
+  --border: var(--border, #cbd5e1);
+  --surface: var(--card, #ffffff);
   --radius: 14px;
   --radius-sm: 10px;
   display: flex;
@@ -241,7 +271,7 @@ function courtState(court) {
   gap: 8px 20px;
   margin-bottom: 16px;
   padding: 12px 16px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   /* Stays put while the courts scroll, parked under the sticky app header.
@@ -278,6 +308,36 @@ function courtState(court) {
   font-weight: 700;
   color: var(--text);
 }
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text-soft);
+  transition: opacity 0.15s, background 0.15s, border-color 0.15s;
+  line-height: 1;
+}
+.pill-btn:active { opacity: 0.75; }
+.pill-btn-accent { background: var(--blue); color: white; border-color: var(--blue); }
+.pill-btn-danger { color: var(--danger); border-color: rgba(185, 28, 28, 0.3); }
+.pill-btn-copied {
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.45);
+  background: rgba(16, 185, 129, 0.12);
+}
+.pill-btn-copied:active { opacity: 1; }
+
 .link-btn {
   background: none;
   border: none;
@@ -299,7 +359,7 @@ function courtState(court) {
 
 .court-card {
   position: relative;
-  background: #fff;
+  background: var(--surface);
   border: 1.5px solid var(--border);
   border-radius: 18px;
   padding: 14px;
@@ -374,15 +434,17 @@ function courtState(court) {
   text-transform: uppercase;
 }
 .badge-live { background: rgba(16, 185, 129, 0.16); color: #065f46; }
-.badge-idle { background: #f1f5f9; color: var(--text-soft); }
+:global([data-theme="dark"]) .badge-live { color: #34d399; }
+.badge-idle { background: var(--bg-1, #f1f5f9); color: var(--text-soft); }
 .badge-warning { background: rgba(245, 158, 11, 0.18); color: #92400e; }
+:global([data-theme="dark"]) .badge-warning { color: #fbbf24; }
 
 .icon-btn {
   width: 30px;
   height: 30px;
   border-radius: 8px;
   border: 1.5px solid var(--border);
-  background: white;
+  background: var(--surface);
   display: grid;
   place-items: center;
   cursor: pointer;

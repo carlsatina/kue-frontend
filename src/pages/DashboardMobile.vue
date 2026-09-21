@@ -304,17 +304,17 @@ function courtState(court) {
 
 /* ── Tokens ───────────────────────────────────────── */
 .dm {
-  --blue: #1565c0;
-  --blue-soft: #dbeafe;
-  --teal: #00897b;
-  --teal-soft: #ccfbf1;
+  --blue: var(--accent, #1565c0);
+  --blue-soft: rgba(21, 101, 192, 0.12);
+  --teal: var(--accent-2, #00897b);
+  --teal-soft: rgba(0, 137, 123, 0.12);
   --green: #10b981;
-  --text: #0f172a;
-  --text-2: #334155;
-  --text-3: #64748b;
-  --border: #e2e8f0;
-  --surface: #ffffff;
-  --danger: #b91c1c;
+  --text: var(--ink, #0f172a);
+  --text-2: var(--ink-soft, #334155);
+  --text-3: var(--ink-soft, #64748b);
+  --border: var(--border, #e2e8f0);
+  --surface: var(--card, #ffffff);
+  --danger: var(--accent-3, #b91c1c);
   --r: 16px;
   --r-sm: 10px;
   display: flex;
@@ -393,16 +393,16 @@ function courtState(court) {
   font-weight: 600;
   cursor: pointer;
   border: 1.5px solid var(--border);
-  background: white;
+  background: var(--surface);
   color: var(--text-2);
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, background 0.15s, border-color 0.15s;
   line-height: 1;
 }
 .pill-btn:active { opacity: 0.75; }
 .pill-btn-accent { background: var(--blue); color: white; border-color: var(--blue); }
 .pill-btn-danger { color: var(--danger); border-color: rgba(185, 28, 28, 0.3); }
 .pill-btn-copied {
-  color: #047857;
+  color: #10b981;
   border-color: rgba(16, 185, 129, 0.45);
   background: rgba(16, 185, 129, 0.12);
 }
@@ -493,15 +493,17 @@ function courtState(court) {
   text-transform: uppercase;
 }
 .tag-live { background: rgba(16, 185, 129, 0.14); color: #065f46; }
-.tag-idle { background: #f1f5f9; color: var(--text-3); }
+:global([data-theme="dark"]) .tag-live { color: #34d399; }
+.tag-idle { background: var(--bg-1, #f1f5f9); color: var(--text-3); }
 .tag-warn { background: rgba(245, 158, 11, 0.16); color: #78350f; }
+:global([data-theme="dark"]) .tag-warn { color: #fbbf24; }
 
 .ic-btn {
   width: 32px;
   height: 32px;
   border-radius: 8px;
   border: 1.5px solid var(--border);
-  background: #f8fafc;
+  background: var(--surface);
   display: grid;
   place-items: center;
   cursor: pointer;

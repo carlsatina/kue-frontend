@@ -937,13 +937,13 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 12px;
   padding: 14px 16px;
-  background: #ffffff;
+  background: var(--card);
   border-bottom: 1px solid var(--border);
   transition: background 0.1s;
 }
 
 .balance-row:last-child { border-bottom: none; }
-.balance-row.is-paid { background: #f8fffe; }
+.balance-row.is-paid { background: rgba(0, 137, 123, 0.08); }
 
 .balance-info {
   display: flex;
@@ -1022,7 +1022,7 @@ onUnmounted(() => {
 .info-poster {
   margin: 0 0 14px;
   padding: 14px 16px;
-  background: #f8fafc;
+  background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   max-height: 56vh;
@@ -1086,7 +1086,8 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  background: #fff;
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 16px;
   max-width: 92vw;
@@ -1100,7 +1101,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f0f0f0;
+  background: var(--bg-1);
   min-height: 200px;
   max-height: 70vh;
 }

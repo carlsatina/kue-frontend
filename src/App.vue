@@ -1,5 +1,5 @@
 <template>
-  <div class="app-shell" :class="{ 'bracket-shell': route.path === '/tournament' || route.path === '/pairing' }">
+  <div class="app-shell" :class="{ 'landing-shell': route.meta.landing, 'auth-shell': route.meta.auth, 'bracket-shell': route.path === '/tournament' || route.path === '/pairing' }">
     <header v-if="!route.meta.hideHeader" ref="headerRef" class="header">
       <div class="brand">
         <img src="./assets/KuePro.png" alt="KuePro" class="brand-logo" />
@@ -16,11 +16,11 @@
             <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><circle cx="8" cy="9" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3.5 19c0-3 2.5-5 4.5-5s4.5 2 4.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M13.5 19c.3-2.1 1.9-3.8 4.1-3.8 2.2 0 3.9 1.7 4.1 3.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
             <span class="nav-label">Players</span>
           </router-link>
-          <router-link v-if="showTeamsNav" to="/teams" class="nav-item">
+          <router-link v-if="showTeamsNav" to="/teams" class="nav-item" :class="{ 'section-active': inSection('/teams') }">
             <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><circle cx="7.5" cy="9" r="2.5"/><circle cx="16.5" cy="9" r="2.5"/><path d="M2.5 19c0-2.6 2.2-4.6 5-4.6s5 2 5 4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M11.5 19c0-2.6 2.2-4.6 5-4.6s5 2 5 4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
             <span class="nav-label">Teams</span>
           </router-link>
-          <router-link v-else to="/groups" class="nav-item">
+          <router-link v-else to="/groups" class="nav-item" :class="{ 'section-active': inSection('/groups') }">
             <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><circle cx="9" cy="8" r="3"/><circle cx="16.5" cy="9.5" r="2.5"/><path d="M3 19c0-3 2.7-5.2 6-5.2s6 2.2 6 5.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M15.5 19c0-2.4 1.6-4.2 3.6-4.2 1 0 1.9.4 2.6 1.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
             <span class="nav-label">Groups</span>
           </router-link>
@@ -132,6 +132,57 @@
               </button>
             </div>
 
+            <!-- Appearance / Theme mode switcher -->
+            <div class="profile-popup-theme">
+              <div class="ppt-label">Appearance</div>
+              <div class="ppt-switch" role="radiogroup" aria-label="Appearance theme">
+                <button
+                  type="button"
+                  class="ppt-btn"
+                  :class="{ active: currentTheme === 'light' }"
+                  :aria-checked="currentTheme === 'light'"
+                  role="radio"
+                  title="Light mode"
+                  @click="setTheme('light')"
+                >
+                  <svg viewBox="0 0 24 24" class="ppt-icon" aria-hidden="true">
+                    <circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="2"/>
+                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                  <span>Light</span>
+                </button>
+                <button
+                  type="button"
+                  class="ppt-btn"
+                  :class="{ active: currentTheme === 'dark' }"
+                  :aria-checked="currentTheme === 'dark'"
+                  role="radio"
+                  title="Dark mode"
+                  @click="setTheme('dark')"
+                >
+                  <svg viewBox="0 0 24 24" class="ppt-icon" aria-hidden="true">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <span>Dark</span>
+                </button>
+                <button
+                  type="button"
+                  class="ppt-btn"
+                  :class="{ active: currentTheme === 'system' }"
+                  :aria-checked="currentTheme === 'system'"
+                  role="radio"
+                  title="System preference"
+                  @click="setTheme('system')"
+                >
+                  <svg viewBox="0 0 24 24" class="ppt-icon" aria-hidden="true">
+                    <rect x="2" y="3" width="20" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+                    <path d="M8 21h8M12 17v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                  <span>Auto</span>
+                </button>
+              </div>
+            </div>
+
             <div class="profile-popup-foot">
               <button class="profile-popup-logout" type="button" @click="logout">Log out</button>
             </div>
@@ -156,11 +207,11 @@
         <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><circle cx="8" cy="9" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3.5 19c0-3 2.5-5 4.5-5s4.5 2 4.5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M13.5 19c.3-2.1 1.9-3.8 4.1-3.8 2.2 0 3.9 1.7 4.1 3.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
         <span class="nav-label">Players</span>
       </router-link>
-      <router-link v-if="showTeamsNav" to="/teams" class="nav-item">
+      <router-link v-if="showTeamsNav" to="/teams" class="nav-item" :class="{ 'section-active': inSection('/teams') }">
         <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><circle cx="7.5" cy="9" r="2.5"/><circle cx="16.5" cy="9" r="2.5"/><path d="M2.5 19c0-2.6 2.2-4.6 5-4.6s5 2 5 4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M11.5 19c0-2.6 2.2-4.6 5-4.6s5 2 5 4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
         <span class="nav-label">Teams</span>
       </router-link>
-      <router-link v-else to="/groups" class="nav-item">
+      <router-link v-else to="/groups" class="nav-item" :class="{ 'section-active': inSection('/groups') }">
         <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><circle cx="9" cy="8" r="3"/><circle cx="16.5" cy="9.5" r="2.5"/><path d="M3 19c0-3 2.7-5.2 6-5.2s6 2.2 6 5.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M15.5 19c0-2.4 1.6-4.2 3.6-4.2 1 0 1.9.4 2.6 1.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
         <span class="nav-label">Groups</span>
       </router-link>
@@ -468,6 +519,7 @@ import {
   deleteWorkspace,
   resetWorkspaces
 } from "./state/workspaceStore.js";
+import { currentTheme, setTheme } from "./state/themeStore.js";
 import GameLoadingModal from "./components/GameLoadingModal.vue";
 
 // Create session modal state
@@ -499,6 +551,14 @@ const newJoinerLimit = ref(0);
 const createError = ref("");
 
 const route = useRoute();
+
+// Vue Router marks a link active by matched route record, and /groups and
+// /groups/:id are sibling records rather than parent and child — so opening a
+// group or a team left its nav tab unlit. Compare the first path segment
+// instead, which is what "am I in this section" actually means here.
+function inSection(path) {
+  return `/${route.path.split("/")[1] || ""}` === path;
+}
 const router = useRouter();
 
 // Profile popup menu + switch-session modal state
@@ -1042,7 +1102,7 @@ onUnmounted(() => {
   min-width: 0;
 }
 .brand-logo {
-  height: 44px;
+  height: 48px;
   width: auto;
   display: block;
   flex-shrink: 0;
@@ -1342,6 +1402,64 @@ onUnmounted(() => {
 .ppi-sub {
   font-size: 12px;
   color: var(--ink-soft);
+}
+
+.profile-popup-theme {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 6px;
+}
+
+.ppt-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+
+.ppt-switch {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 3px;
+}
+
+.ppt-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 4px;
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.ppt-btn:hover {
+  color: var(--ink);
+}
+
+.ppt-btn.active {
+  background: var(--card);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.ppt-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 .profile-popup-foot {

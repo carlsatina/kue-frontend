@@ -486,7 +486,7 @@ watch(selectedSessionId, load);
   padding: 8px 16px;
   border-radius: 999px;
   border: 2px solid var(--border);
-  background: #ffffff;
+  background: var(--card);
   font-size: 14px;
   font-weight: 500;
   color: var(--ink);
@@ -525,7 +525,7 @@ watch(selectedSessionId, load);
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  background: #ffffff;
+  background: var(--card);
   border-bottom: 1px solid var(--border);
 }
 
@@ -534,7 +534,7 @@ watch(selectedSessionId, load);
 }
 
 .pair-row.is-auto {
-  background: #f8fffe;
+  background: rgba(0, 137, 123, 0.08);
 }
 
 .pair-name {

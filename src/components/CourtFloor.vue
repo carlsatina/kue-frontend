@@ -46,9 +46,9 @@ const bigNo = computed(() => {
   padding: 14px;
   border-radius: 12px;
   overflow: hidden;
-  /* idle: light mint floor with painted boundary */
-  background: linear-gradient(150deg, #ecfdf5, #d1fae5);
-  border: 2px solid #5eead4;
+  /* idle: light mint floor in light mode, dark tournament floor in dark mode */
+  background: var(--court-floor-bg);
+  border: 2px solid var(--court-floor-border);
   transition: background 0.25s ease, border-color 0.25s ease;
 }
 /* inner service-box lines */
@@ -56,7 +56,7 @@ const bigNo = computed(() => {
   content: "";
   position: absolute;
   inset: 9px;
-  border: 2px solid rgba(13, 148, 136, 0.28);
+  border: 2px solid var(--court-floor-line);
   border-radius: 4px;
   pointer-events: none;
 }
@@ -67,7 +67,7 @@ const bigNo = computed(() => {
   bottom: 6px;
   left: 50%;
   width: 0;
-  border-left: 2px dashed rgba(13, 148, 136, 0.55);
+  border-left: 2px dashed var(--court-floor-net);
   transform: translateX(-1px);
 }
 /* big court number watermark */
@@ -81,7 +81,7 @@ const bigNo = computed(() => {
   line-height: 1;
   letter-spacing: -0.04em;
   font-variant-numeric: tabular-nums;
-  color: rgba(13, 148, 136, 0.14);
+  color: var(--court-floor-no);
   pointer-events: none;
 }
 .cf-empty {
@@ -91,11 +91,12 @@ const bigNo = computed(() => {
   text-align: center;
   font-size: 12.5px;
   font-weight: 700;
-  color: #0f766e;
-  background: rgba(255, 255, 255, 0.72);
+  color: var(--court-empty-color);
+  background: var(--court-empty-bg);
+  border: 1px solid var(--court-empty-border);
   padding: 5px 13px;
   border-radius: 999px;
-  box-shadow: 0 1px 4px rgba(13, 148, 136, 0.12);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
 }
 
 /* live floor */
@@ -109,13 +110,16 @@ const bigNo = computed(() => {
 
 /* maintenance floor */
 .court-floor.maintenance {
-  background: linear-gradient(150deg, #fffbeb, #fef3c7);
-  border-color: #fcd34d;
+  background: var(--court-maint-bg);
+  border-color: var(--court-maint-border);
 }
-.court-floor.maintenance::before { border-color: rgba(217, 119, 6, 0.26); }
-.court-floor.maintenance .cf-net { border-left-color: rgba(217, 119, 6, 0.45); }
-.court-floor.maintenance .cf-no { color: rgba(180, 83, 9, 0.14); }
-.court-floor.maintenance .cf-empty { color: #92400e; }
+.court-floor.maintenance::before { border-color: var(--court-maint-line); }
+.court-floor.maintenance .cf-net { border-left-color: var(--court-maint-net); }
+.court-floor.maintenance .cf-no { color: var(--court-maint-no); }
+.court-floor.maintenance .cf-empty {
+  color: var(--court-maint-color);
+  background: var(--court-maint-empty-bg);
+}
 
 /* live teams on either side of the net */
 .cf-side {
@@ -154,8 +158,9 @@ const bigNo = computed(() => {
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.04em;
-  background: #fff;
-  color: #0f766e;
+  background: var(--court-vs-bg);
+  color: var(--court-vs-color);
+  border: 1px solid var(--court-vs-border);
   padding: 3px 8px;
   border-radius: 999px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
