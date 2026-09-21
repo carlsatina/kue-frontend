@@ -204,7 +204,7 @@
         <h3>New Player</h3>
         <div class="field">
           <label class="field-label">Name</label>
-          <input class="input" v-model="newPlayerName" placeholder="Player name" />
+          <input ref="newPlayerNameInput" class="input" v-model="newPlayerName" placeholder="Player name" />
         </div>
         <div class="field">
           <label class="field-label">Skill level</label>
@@ -230,7 +230,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { api } from "../api.js";
 import { track } from "../utils/analytics.js";
@@ -254,6 +254,7 @@ const editError = ref("");
 const showEditTeam = ref(false);
 const showDeleteTeam = ref(false);
 const showAddPlayerModal = ref(false);
+const newPlayerNameInput = ref(null);
 const newPlayerName = ref("");
 const newPlayerSkill = ref("Beginner");
 const addPlayerError = ref("");
@@ -484,6 +485,8 @@ function openAddPlayerModal() {
   newPlayerName.value = "";
   newPlayerSkill.value = "Beginner";
   showAddPlayerModal.value = true;
+  // Wait for the modal to render before the field exists to focus.
+  nextTick(() => newPlayerNameInput.value?.focus());
 }
 function closeAddPlayerModal() { showAddPlayerModal.value = false; addPlayerError.value = ""; }
 

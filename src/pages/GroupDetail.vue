@@ -62,20 +62,14 @@
           <div v-for="member in members" :key="member.id" class="member-row">
             <div class="member-info">
               <span class="member-name">{{ member.player.nickname || member.player.fullName }}</span>
-              <span v-if="member.player.nickname" class="member-fullname">{{ member.player.fullName }}</span>
+              <span class="member-meta">
+                <span v-if="member.role !== 'member'" class="member-role">{{ roleLabel(member.role) }}</span>
+                <span v-if="inSession(member.playerId)" class="in-session-tag">
+                  {{ statusLabel(sessionStatusFor(member.playerId)) }}
+                </span>
+                <span v-else-if="member.player.nickname" class="member-fullname">{{ member.player.fullName }}</span>
+              </span>
             </div>
-            <span v-if="inSession(member.playerId)" class="in-session-tag">
-              {{ statusLabel(sessionStatusFor(member.playerId)) }}
-            </span>
-            <select
-              class="role-select"
-              :value="member.role"
-              @change="updateRole(member, $event.target.value)"
-            >
-              <option value="owner">Owner</option>
-              <option value="manager">Manager</option>
-              <option value="member">Member</option>
-            </select>
             <button class="remove-member-btn" title="Remove from group" @click="removeMember(member)">
               <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
@@ -87,14 +81,14 @@
 
       <!-- Invite link -->
       <div class="detail-section">
-        <div class="section-header">
-          <h2 class="section-title">Invite link</h2>
-        </div>
-        <p class="text-muted">
-          Anyone with this link can add themselves to the group's roster.
-        </p>
+        <button class="button button-compact" @click="toggleInvite">
+          {{ showInvite ? 'Hide invite link' : 'Invite link' }}
+        </button>
 
-        <template v-if="inviteUrl">
+        <div v-if="showInvite && inviteUrl" class="invite-panel">
+          <p class="text-muted">
+            Anyone with this link can add themselves to the group's roster.
+          </p>
           <div class="invite-row">
             <input class="input" :value="inviteUrl" readonly @focus="$event.target.select()" />
             <button class="button button-compact" @click="copyInvite">{{ copied ? 'Copied' : 'Copy' }}</button>
@@ -103,8 +97,7 @@
             <button class="button ghost button-compact" @click="createInviteLink">Regenerate</button>
             <button class="button ghost danger button-compact" @click="revokeInviteLink">Revoke</button>
           </div>
-        </template>
-        <button v-else class="button button-compact" @click="createInviteLink">Create invite link</button>
+        </div>
 
         <div v-if="inviteError" class="notice">{{ inviteError }}</div>
       </div>
@@ -122,7 +115,7 @@
         </p>
         <div class="field">
           <label class="field-label">Name</label>
-          <input class="input" v-model="newPlayerName" placeholder="Player name" />
+          <input ref="newPlayerNameInput" class="input" v-model="newPlayerName" placeholder="Player name" />
         </div>
         <div class="field">
           <label class="field-label">Nickname <span class="field-hint">optional</span></label>
@@ -160,7 +153,7 @@
         <h3>Edit group</h3>
         <div class="field">
           <label class="field-label">Name</label>
-          <input class="input" v-model="editName" placeholder="Group name" />
+          <input ref="editNameInput" class="input" v-model="editName" placeholder="Group name" />
         </div>
         <div class="field">
           <label class="field-label">Description <span class="field-hint">optional</span></label>
@@ -191,7 +184,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { api } from "../api.js";
 import { selectedSessionId } from "../state/sessionStore.js";
@@ -213,6 +206,7 @@ const membersError = ref("");
 
 const skillLevels = ["Beginner", "Intermediate", "Advance", "Elite"];
 const showAddPlayerModal = ref(false);
+const newPlayerNameInput = ref(null);
 const newPlayerName = ref("");
 const newPlayerNickname = ref("");
 const newPlayerContact = ref("");
@@ -225,6 +219,7 @@ const addPlayerError = ref("");
 const sessionPlayers = ref([]);
 
 const showEditGroup = ref(false);
+const editNameInput = ref(null);
 const editName = ref("");
 const editDescription = ref("");
 const editError = ref("");
@@ -232,6 +227,7 @@ const showDeleteGroup = ref(false);
 
 const inviteError = ref("");
 const copied = ref(false);
+const showInvite = ref(false);
 
 const showToast = ref(false);
 const toastMessage = ref("");
@@ -344,6 +340,8 @@ function openAddPlayerModal() {
   newPlayerContact.value = "";
   newPlayerSkill.value = "Beginner";
   showAddPlayerModal.value = true;
+  // Wait for the modal to render before the field exists to focus.
+  nextTick(() => newPlayerNameInput.value?.focus());
 }
 
 // Create the player on the workspace roster, then put them in this group — the
@@ -386,14 +384,8 @@ async function removeMember(member) {
   }
 }
 
-async function updateRole(member, role) {
-  membersError.value = "";
-  try {
-    await api.updateGroupMemberRole(groupId, member.playerId, { role });
-    member.role = role;
-  } catch (err) {
-    membersError.value = err.message || "Unable to update role";
-  }
+function roleLabel(role) {
+  return role === "owner" ? "Owner" : role === "manager" ? "Manager" : "Member";
 }
 
 function openEditGroup() {
@@ -401,6 +393,8 @@ function openEditGroup() {
   editName.value = group.value?.name || "";
   editDescription.value = group.value?.description || "";
   showEditGroup.value = true;
+  // Wait for the modal to render before the field exists to focus.
+  nextTick(() => editNameInput.value?.focus());
 }
 
 async function saveGroup() {
@@ -433,6 +427,17 @@ async function deleteGroup() {
   }
 }
 
+// One button does both jobs: reveal the link, and mint one the first time
+// there isn't one yet.
+async function toggleInvite() {
+  if (showInvite.value) {
+    showInvite.value = false;
+    return;
+  }
+  showInvite.value = true;
+  if (!inviteLink.value) await createInviteLink();
+}
+
 async function createInviteLink() {
   inviteError.value = "";
   try {
@@ -451,6 +456,7 @@ async function revokeInviteLink() {
   try {
     await api.revokeGroupInviteLink(inviteLink.value.id);
     inviteLink.value = null;
+    showInvite.value = false;
     triggerToast("Invite link revoked");
   } catch (err) {
     inviteError.value = err.message || "Unable to revoke invite link";
@@ -625,21 +631,27 @@ onBeforeUnmount(() => {
   color: var(--ink-soft);
 }
 
+/* Two columns so a long roster stays scannable without a long scroll. */
 .member-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 16px;
 }
 
 .member-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 11px 2px;
-  border-bottom: 1px solid var(--border);
+  gap: 8px;
+  padding: 10px 2px;
+  min-width: 0;
+  /* Divider on top, so the first row of each column stays clean regardless of
+     how the roster count falls across the two columns. */
+  border-top: 1px solid var(--border);
 }
 
-.member-row:last-child {
-  border-bottom: none;
+.member-row:nth-child(1),
+.member-row:nth-child(2) {
+  border-top: none;
 }
 
 .member-info {
@@ -650,26 +662,34 @@ onBeforeUnmount(() => {
 .member-name {
   font-size: 16px;
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.member-fullname {
-  font-size: 13px;
-  color: var(--ink-soft);
+.member-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
-.in-session-tag {
+.member-fullname,
+.in-session-tag,
+.member-role {
   font-size: 13px;
   color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-role {
   flex-shrink: 0;
 }
 
-.role-select {
-  font-size: 13px;
-  padding: 4px 6px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: #ffffff;
-  color: var(--ink-soft);
+.in-session-tag {
+  flex-shrink: 0;
 }
 
 .remove-member-btn {
@@ -690,6 +710,17 @@ onBeforeUnmount(() => {
 }
 
 /* ── Invite link ─────────────────────────────────────────────────── */
+.invite-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.invite-panel .text-muted {
+  margin: 0;
+}
+
 .invite-row {
   display: flex;
   gap: 8px;

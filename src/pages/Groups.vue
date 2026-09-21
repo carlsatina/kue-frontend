@@ -44,7 +44,7 @@
         <h3>Create group</h3>
         <div class="field">
           <label class="field-label">Name</label>
-          <input class="input" v-model="newGroupName" placeholder="e.g. Tuesday Open Play" />
+          <input ref="newGroupNameInput" class="input" v-model="newGroupName" placeholder="e.g. Tuesday Open Play" />
         </div>
         <div class="field">
           <label class="field-label">Description <span class="field-hint">optional</span></label>
@@ -61,7 +61,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { api } from "../api.js";
 
@@ -73,6 +73,7 @@ const listError = ref("");
 const groupSearch = ref("");
 
 const showCreateGroup = ref(false);
+const newGroupNameInput = ref(null);
 const newGroupName = ref("");
 const newGroupDescription = ref("");
 const createError = ref("");
@@ -100,6 +101,8 @@ function openCreateGroup() {
   newGroupName.value = "";
   newGroupDescription.value = "";
   showCreateGroup.value = true;
+  // Wait for the modal to render before the field exists to focus.
+  nextTick(() => newGroupNameInput.value?.focus());
 }
 
 function closeCreateGroup() {

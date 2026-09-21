@@ -158,7 +158,7 @@
           <div class="field">
             <label class="field-label">Session mode</label>
             <select class="input" v-model="editMode">
-              <option value="usual">Usual</option>
+              <option value="usual">Open Play</option>
               <option value="tournament">Tournament</option>
             </select>
           </div>
