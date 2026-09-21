@@ -861,7 +861,25 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 14px;
+  /* Stays put while the balances scroll, parked under the sticky app header.
+     The search and the status chips pin together: pinning the input alone
+     would leave the chips to slide underneath it. --header-h is measured in
+     App.vue; the fallback covers the frame before the first measurement. */
+  position: sticky;
+  top: var(--header-h, 69px);
+  z-index: 40;
+  background: var(--bg-0);
+  /* Bled into the shell's side padding so the bar reads full width. */
+  margin: 0 -16px 14px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+@media (min-width: 880px) {
+  .fees-controls {
+    margin: 0 -24px 14px;
+    padding: 10px 24px;
+  }
 }
 .fees-search {
   width: 100%;

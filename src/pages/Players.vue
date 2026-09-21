@@ -220,30 +220,14 @@
         </div>
 
         <!-- Add Player section -->
-        <div class="add-player-section" :class="{ collapsed: !showAddPlayer }">
-          <button class="add-player-heading" type="button" :aria-expanded="showAddPlayer" @click="showAddPlayer = !showAddPlayer">
-            <span>Add Player</span>
-            <svg class="add-player-chevron" :class="{ open: showAddPlayer }" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-              <path fill="currentColor" d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"></path>
-            </svg>
+        <!-- Two ways in, both opening over the page rather than pushing it. -->
+        <div class="add-player-actions">
+          <button class="button button-compact" :disabled="!sessionIsOpen" @click="openAddPlayerModal">
+            + Add Player
           </button>
-          <template v-if="showAddPlayer">
-            <div class="add-player-form">
-              <input class="input" v-model="fullName" placeholder="Player name" :disabled="!sessionIsOpen" />
-              <div class="chip-row">
-                <button v-for="level in skillLevels" :key="level" class="chip" :class="{ active: skillLevel === level }" type="button" :disabled="!sessionIsOpen" @click="skillLevel = level">{{ level }}</button>
-              </div>
-              <button class="button button-compact" @click="addPlayer" :disabled="!sessionIsOpen">Add Player</button>
-              <div v-if="addError" class="notice">{{ addError }}</div>
-              <!-- The other way into the same session: a whole group at once. -->
-              <div class="add-player-alt">
-                <span class="add-player-alt-label">or add several at once</span>
-                <button class="button ghost button-compact" :disabled="!sessionIsOpen" @click="openGroupPicker">
-                  <span class="link-icon">👥</span> From Group
-                </button>
-              </div>
-            </div>
-          </template>
+          <button class="button ghost button-compact" :disabled="!sessionIsOpen" @click="openGroupPicker">
+            <span class="link-icon">👥</span> From Group
+          </button>
         </div>
       </template>
     </template>
@@ -392,6 +376,36 @@
         <div class="grid two">
           <button class="button danger" @click="confirmCancelMatch">Cancel match</button>
           <button class="button ghost" @click="closeCancelConfirm">Keep</button>
+        </div>
+      </div>
+    </div>
+    <div v-if="showAddPlayerModal" class="modal-backdrop" @click.self="closeAddPlayerModal">
+      <div class="modal-card">
+        <h3>Add player</h3>
+        <p class="text-muted" style="margin: 0 0 12px">
+          Creates the player and checks them in to this session.
+        </p>
+        <div class="field">
+          <label class="field-label">Name</label>
+          <input ref="addPlayerNameInput" class="input" v-model="fullName" placeholder="Player name" @keyup.enter="addPlayer" />
+        </div>
+        <div class="field">
+          <label class="field-label">Skill level</label>
+          <div class="chip-row">
+            <button
+              v-for="level in skillLevels"
+              :key="level"
+              class="chip"
+              :class="{ active: skillLevel === level }"
+              type="button"
+              @click="skillLevel = level"
+            >{{ level }}</button>
+          </div>
+        </div>
+        <div v-if="addError" class="notice">{{ addError }}</div>
+        <div class="grid two">
+          <button class="button ghost" @click="closeAddPlayerModal">Cancel</button>
+          <button class="button" :disabled="!sessionIsOpen" @click="addPlayer">Add Player</button>
         </div>
       </div>
     </div>
@@ -813,8 +827,8 @@ let joinLinkCopyTimer = null;
 const historySearch = ref("");
 const showDisplayMenu = ref(false);
 const showJoinOrder = ref(false);
-// Collapsed by default — the roster is what the page is for; adding is occasional.
-const showAddPlayer = ref(false);
+const showAddPlayerModal = ref(false);
+const addPlayerNameInput = ref(null);
 const teamSearch = ref("");
 const displayMenuRef = ref(null);
 const sessionIsOpen = computed(() => session.value?.status === "open");
@@ -1890,6 +1904,20 @@ async function onTouchEnd(e) {
   isPulling.value = false;
 }
 
+function openAddPlayerModal() {
+  addError.value = "";
+  fullName.value = "";
+  skillLevel.value = skillLevels[0];
+  showAddPlayerModal.value = true;
+  // Wait for the modal to render before the field exists to focus.
+  nextTick(() => addPlayerNameInput.value?.focus());
+}
+
+function closeAddPlayerModal() {
+  showAddPlayerModal.value = false;
+  addError.value = "";
+}
+
 async function addPlayer() {
   addError.value = "";
   if (!fullName.value.trim()) {
@@ -1913,6 +1941,7 @@ async function performAddPlayer() {
       track("player-checkin", { source: "add" });
     }
     fullName.value = "";
+    showAddPlayerModal.value = false;
     await load();
   } catch (err) {
     addError.value = err.message || "Unable to add player";
@@ -3529,129 +3558,12 @@ onUnmounted(() => {
 }
 
 /* ── Add Player section ──────────────────────────────────────────── */
-.add-player-section {
-  border-top: 1px solid var(--border);
-  padding-top: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.add-player-section.collapsed {
-  gap: 0;
-}
-
-.add-player-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  font-size: 18px;
-  font-weight: 700;
-  margin: 0;
-  padding: 0;
-  background: none;
-  border: none;
-  color: var(--ink);
-  cursor: pointer;
-  text-align: left;
-}
-
-.add-player-chevron {
-  flex-shrink: 0;
-  color: var(--ink-soft);
-  transition: transform 0.18s ease;
-}
-
-.add-player-chevron.open {
-  transform: rotate(180deg);
-}
-
-.add-player-form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.group-picker-search {
-  margin-bottom: 10px;
-}
-
-.next-up {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 10px;
-  padding: 12px 0;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-}
-
-.next-up-teams {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.next-up-label {
-  font-size: 13px;
-  color: var(--ink-soft);
-}
-
-.next-up-names {
-  font-size: 16px;
-}
-
-.next-up-vs {
-  color: var(--ink-soft);
-  font-size: 13px;
-  padding: 0 4px;
-}
-
-.next-up-actions {
+.add-player-actions {
   display: flex;
   gap: 8px;
-  flex-shrink: 0;
-}
-
-.auto-queue-hint {
-  margin: 8px 0 0;
-  font-size: 13px;
-  color: var(--ink-soft);
-}
-
-.add-player-alt {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-top: 10px;
+  flex-wrap: wrap;
+  padding-top: 16px;
   border-top: 1px solid var(--border);
-}
-
-.add-player-alt-label {
-  font-size: 13px;
-  color: var(--ink-soft);
-}
-
-/* On wider screens, lay out the form horizontally */
-@media (min-width: 600px) {
-  .add-player-form {
-    flex-direction: row;
-    align-items: flex-end;
-    flex-wrap: wrap;
-  }
-
-  .add-player-form .input {
-    flex: 1;
-    min-width: 200px;
-  }
-
-  .add-player-form .chip-row {
-    flex-shrink: 0;
-  }
 }
 
 .players-header {
