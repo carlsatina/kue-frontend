@@ -73,10 +73,7 @@
 
         <!-- Player grid -->
         <template v-if="selectionTab === 'players'">
-          <p v-if="isOpenPlay" class="pick-hint">
-            Pick 1 player to join the lineup, or 2 to keep them together as a pair
-          </p>
-          <p v-else class="pick-hint">Pick {{ selectionLimit }} players to start a match</p>
+          <p class="pick-hint">Pick {{ selectionLimit }} players to start a match</p>
           <div class="player-grid">
             <div
               v-for="player in filteredPlayers"
@@ -116,7 +113,7 @@
 
           <div class="action-bar">
             <button class="button button-compact" :disabled="!canAdd" @click="addToQueue">
-              {{ isOpenPlay ? 'Add to Lineup' : 'Add to Q' }}
+              Add to Q
             </button>
             <button
               class="button secondary button-compact"
@@ -221,48 +218,6 @@
         </div>
       </div>
 
-      <!-- Open play: one ordered lineup of rackets, called onto courts -->
-      <template v-if="isOpenPlay">
-        <div class="lineup-call-row">
-          <p class="text-muted">
-            {{ lineupEntries.length }} racket{{ lineupEntries.length === 1 ? '' : 's' }} waiting
-          </p>
-          <div v-if="availableCourts.length" class="court-buttons">
-            <button
-              v-for="court in availableCourts"
-              :key="court.id"
-              class="button button-compact"
-              :disabled="callingCourtId === court.id"
-              @click="callNext(court)"
-            >
-              {{ callingCourtId === court.id ? 'Calling…' : `Call to ${court.court?.name || court.name}` }}
-            </button>
-          </div>
-          <p v-else class="text-muted">No free courts.</p>
-        </div>
-        <div v-if="callError" class="notice">{{ callError }}</div>
-        <div v-if="lastCall" class="notice success">{{ lastCall }}</div>
-
-        <p v-if="lineupEntries.length === 0" class="empty-state">Lineup is empty.</p>
-        <div v-else class="lineup-list">
-          <div
-            v-for="(entry, idx) in lineupEntries"
-            :key="entry.id"
-            class="lineup-row"
-            :class="{ 'next-up': idx < nextUpCount }"
-          >
-            <span class="lineup-position">{{ idx + 1 }}</span>
-            <div class="lineup-names">
-              <span class="lineup-name">{{ entry.names.join(' + ') }}</span>
-              <span v-if="entry.lockedTeams" class="lineup-tag">fixed match</span>
-              <span v-else-if="entry.names.length > 1" class="lineup-tag">partners</span>
-            </div>
-            <button class="link-button danger" @click="removeFromLineup(entry)">Remove</button>
-          </div>
-        </div>
-      </template>
-
-      <template v-else>
       <p v-if="queueMatches.length === 0" class="empty-state">Queue is empty.</p>
       <div v-for="(match, idx) in queueMatches" :key="match.id" class="queue-match-card" :class="{ alt: idx % 2 === 1 }">
         <div class="queue-card-head">
@@ -287,7 +242,6 @@
         </div>
         <button class="link-button danger" @click="cancelQueuedMatch(match)">Cancel match</button>
       </div>
-      </template>
     </div>
 
     <!-- History Tab -->
@@ -811,6 +765,10 @@ const editPairingError = ref("");
 const editPairingIdleSearch = ref("");
 
 const AUTO_QUEUE_COOLDOWN_MS = 3 * 60 * 1000; // 3 minutes after last game
+// Statuses that mean a player is here and free to be picked. "present" is the
+// explicit "they're standing right here" confirmation, so it belongs even more
+// than plain checked_in; `away` and `done` deliberately don't.
+const AUTO_QUEUE_STATUSES = ["checked_in", "present"];
 const PARTNER_HISTORY_LIMIT = 2; // recent partnerships tracked per player
 
 const skillLevels = ["Beginner", "Intermediate", "Advance", "Elite"];
@@ -827,39 +785,13 @@ const sessionGameType = computed(() => {
   return normalized === "single" ? "singles" : normalized;
 });
 const isTournamentMode = computed(() => session.value?.mode === "tournament");
+// Sessions predating the setting read as true, matching the column default.
+const matchByLevel = computed(() => session.value?.matchByLevel !== false);
 const sessionGameTypeLabel = computed(() =>
   sessionGameType.value === "singles" ? "Singles" : "Doubles"
 );
-// Open play queues one racket at a time; the classic flow picks a whole match.
-const isOpenPlay = computed(() => session.value?.queueMode === "open_play");
-const selectionLimit = computed(() => {
-  if (sessionGameType.value === "singles") return isOpenPlay.value ? 1 : 2;
-  return isOpenPlay.value ? 2 : 4;
-});
+const selectionLimit = computed(() => (sessionGameType.value === "singles" ? 2 : 4));
 
-// The lineup, in call order, with the names already resolved for display.
-const lineupEntries = computed(() =>
-  queueEntries.value.map((entry) => ({
-    id: entry.id,
-    lockedTeams: entry.lockedTeams,
-    playerIds: entry.players.map((p) => p.playerId),
-    names: entry.players.map((p) => p.player.nickname || p.player.fullName)
-  }))
-);
-
-// How many rackets off the head fill the next court — just for highlighting.
-const nextUpCount = computed(() => {
-  const seats = sessionGameType.value === "singles" ? 2 : 4;
-  let remaining = seats;
-  let count = 0;
-  for (const entry of lineupEntries.value) {
-    if (remaining === 0) break;
-    if (entry.playerIds.length > remaining) continue;
-    remaining -= entry.playerIds.length;
-    count += 1;
-  }
-  return remaining === 0 ? count : 0;
-});
 
 const sessionPlayerMap = computed(() => {
   const map = new Map();
@@ -1012,10 +944,6 @@ const filteredPlayers = computed(() => {
 
 const canAdd = computed(() => {
   if (!session.value || !sessionIsOpen.value) return false;
-  // A lineup racket is 1 player, or 2 who want to stay partners.
-  if (isOpenPlay.value) {
-    return selectedIds.value.length >= 1 && selectedIds.value.length <= selectionLimit.value;
-  }
   return selectedIds.value.length === selectionLimit.value;
 });
 const idleCandidates = computed(() => {
@@ -1024,7 +952,7 @@ const idleCandidates = computed(() => {
   return sessionPlayers.value
     .filter((sp) => sp?.player)
     .filter((sp) => {
-      if (sp.status !== "checked_in" && sp.status !== "ready") return false;
+      if (!AUTO_QUEUE_STATUSES.includes(sp.status)) return false;
       if (playingIds.value.has(sp.playerId) || queuedIds.value.has(sp.playerId)) return false;
       if (sp.lastPlayedAt && now - new Date(sp.lastPlayedAt).getTime() < AUTO_QUEUE_COOLDOWN_MS) return false;
       return true;
@@ -1104,7 +1032,7 @@ const coolingDown = computed(() => {
   return sessionPlayers.value
     .filter((sp) => sp?.player)
     .filter((sp) => {
-      if (sp.status !== "checked_in" && sp.status !== "ready") return false;
+      if (!AUTO_QUEUE_STATUSES.includes(sp.status)) return false;
       if (playingIds.value.has(sp.playerId) || queuedIds.value.has(sp.playerId)) return false;
       return sp.lastPlayedAt && now - new Date(sp.lastPlayedAt).getTime() < AUTO_QUEUE_COOLDOWN_MS;
     })
@@ -1154,7 +1082,7 @@ const editPairingIdlePlayers = computed(() => {
   });
   return sessionPlayers.value
     .filter((sp) => {
-      if (!["checked_in", "ready", "present"].includes(sp.status)) return false;
+      if (!["checked_in", "present"].includes(sp.status)) return false;
       if (playingIds.value.has(sp.playerId)) return false;
       if (queuedElsewhere.has(sp.playerId)) return false;
       if (inSlots.has(sp.playerId)) return false;
@@ -1246,7 +1174,6 @@ const teamOptionMap = computed(() => new Map(teamOptions.value.map((team) => [te
 
 function isReadyForPresent(sp) {
   if (!sp) return false;
-  if (sp.status === "ready") return true;
   if (sp.status === "checked_in") return !sp.lastPlayedAt;
   return false;
 }
@@ -1430,7 +1357,7 @@ function statusLabel(player) {
   if (sp.status === "away") return "Away";
   if (sp.status === "done") return "Done";
   if (sp.status === "present") return "Present";
-  if (sp.status === "checked_in" || sp.status === "ready") {
+  if (sp.status === "checked_in") {
     if (!sessionIsOpen.value) return "Ready";
     if (sp.lastPlayedAt) {
       const elapsed = idleElapsed(sp);
@@ -1451,7 +1378,7 @@ function statusClass(player) {
   if (sp.status === "away") return "away";
   if (sp.status === "done") return "done";
   if (sp.status === "present") return "present";
-  if (sp.status === "checked_in" || sp.status === "ready") {
+  if (sp.status === "checked_in") {
     return sp.lastPlayedAt ? "idle" : "checkedin";
   }
   return "neutral";
@@ -1679,55 +1606,6 @@ function load() {
   });
 }
 
-// ── Open play: the racket lineup ─────────────────────────────────────
-const callingCourtId = ref("");
-const callError = ref("");
-const lastCall = ref("");
-
-// One entry per racket: a solo player, or a pair staying together.
-async function enqueueLineupRacket(playerIds) {
-  await ensureCheckedIn(playerIds);
-  await api.enqueue(session.value.id, { playerIds });
-  track("queue-add", { kind: "lineup", count: playerIds.length });
-  selectedIds.value = [];
-  await load();
-}
-
-// Hand a free court to the front of the lineup. The server picks and starts the
-// match in one transaction, so two staff tapping at once can't double-book.
-async function callNext(court) {
-  if (!session.value || !sessionIsOpen.value) return;
-  callError.value = "";
-  lastCall.value = "";
-  callingCourtId.value = court.id;
-  try {
-    const result = await api.callNextMatch(session.value.id, { courtSessionId: court.id });
-    const named = (result.teams || []).map((team) =>
-      team.map((id) => playerMap.value.get(id)?.nickname || playerMap.value.get(id)?.fullName || "?").join(" + ")
-    );
-    lastCall.value = `${court.court?.name || court.name}: ${named.join(" vs ")}`;
-    if (result.skippedEntryIds?.length) {
-      lastCall.value += ` · ${result.skippedEntryIds.length} passed over (kept their place)`;
-    }
-    track("match-started", { matchType: sessionGameType.value, via: "call-next" });
-    await load();
-  } catch (err) {
-    callError.value = err.message || "Unable to call the next match";
-  } finally {
-    callingCourtId.value = "";
-  }
-}
-
-async function removeFromLineup(entry) {
-  callError.value = "";
-  try {
-    await api.dequeue(session.value.id, { entryId: entry.id });
-    await load();
-  } catch (err) {
-    callError.value = err.message || "Unable to remove that racket";
-  }
-}
-
 // ── Add players from a group ─────────────────────────────────────────
 const showGroupPicker = ref(false);
 const groups = ref([]);
@@ -1885,7 +1763,7 @@ async function ensureCheckedIn(playerIds) {
   if (!session.value) return;
   for (const playerId of playerIds) {
     const sp = sessionPlayerMap.value.get(playerId);
-    if (!sp || (sp.status !== "checked_in" && sp.status !== "present" && sp.status !== "ready")) {
+    if (!sp || (sp.status !== "checked_in" && sp.status !== "present")) {
       await api.checkinPlayer(playerId, { sessionId: session.value.id });
     }
   }
@@ -1899,18 +1777,6 @@ async function addToQueue() {
   queueError.value = "";
   removeError.value = "";
   presentError.value = "";
-  if (isOpenPlay.value) {
-    if (!selectedIds.value.length || selectedIds.value.length > selectionLimit.value) {
-      queueError.value = `Select 1${selectionLimit.value > 1 ? ` or ${selectionLimit.value}` : ""} player${selectionLimit.value > 1 ? "s" : ""}.`;
-      return;
-    }
-    try {
-      await enqueueLineupRacket(selectedIds.value);
-    } catch (err) {
-      queueError.value = err.message || "Unable to add to the lineup";
-    }
-    return;
-  }
   if (selectedIds.value.length !== selectionLimit.value) {
     queueError.value = `Select ${selectionLimit.value} players.`;
     return;
@@ -1936,6 +1802,44 @@ async function addToQueue() {
   }
 }
 
+// Auto Q picks by fairness, but four players spanning Beginner to Elite makes a
+// poor game however you split them: the balancer can equalise the two sides
+// (Beginner+Advance vs Beginner+Advance sums the same) while everyone on court
+// has a bad time. So constrain the *spread* of the foursome, not just the gap
+// between the sides.
+//
+// The fairest player anchors the group — they've waited longest or played least,
+// so they play regardless. The rest are taken in fairness order, skipping anyone
+// who would widen the group beyond the band. Bands are tried narrowest first and
+// the last one is unconstrained, so a thin or lopsided pool still fills a court
+// rather than stalling.
+const SKILL_BANDS = [0, 1, 2, 3];
+
+function pickBalancedGroup(candidates, needed) {
+  if (candidates.length < needed) return [];
+  // Off for a mixed-level social session: fairness order alone decides.
+  if (!matchByLevel.value) return candidates.slice(0, needed);
+  const anchor = candidates[0];
+  const rest = candidates.slice(1);
+
+  for (const band of SKILL_BANDS) {
+    const group = [anchor];
+    let lo = anchor.skill;
+    let hi = anchor.skill;
+    for (const candidate of rest) {
+      if (group.length === needed) break;
+      const nextLo = Math.min(lo, candidate.skill);
+      const nextHi = Math.max(hi, candidate.skill);
+      if (nextHi - nextLo > band) continue;
+      group.push(candidate);
+      lo = nextLo;
+      hi = nextHi;
+    }
+    if (group.length === needed) return group;
+  }
+  return candidates.slice(0, needed);
+}
+
 async function autoQueueIdle() {
   if (!session.value || !sessionIsOpen.value) {
     queueError.value = "Session is not open.";
@@ -1949,8 +1853,8 @@ async function autoQueueIdle() {
     queueError.value = `Need ${needed} idle players to auto queue.`;
     return;
   }
-  // idleCandidates is already in fair order, so the front of it is the answer.
-  const selected = idleCandidates.value.slice(0, needed);
+  // Fairest first, then narrowed to players of a similar level.
+  const selected = pickBalancedGroup(idleCandidates.value, needed);
   const order =
     sessionGameType.value === "doubles" && selected.length === 4
       ? buildBalancedDoublesOrder(selected, recentPartnersMap.value)
@@ -3360,60 +3264,6 @@ onUnmounted(() => {
   display: flex;
   gap: 8px;
   align-items: center;
-}
-
-/* ── Open play lineup ────────────────────────────────────────────── */
-.lineup-call-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.lineup-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.lineup-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 2px;
-  border-bottom: 1px solid var(--border);
-}
-
-.lineup-row.next-up {
-  background: rgba(21, 101, 192, 0.06);
-}
-
-.lineup-position {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--ink-soft);
-  width: 20px;
-  flex-shrink: 0;
-}
-
-.lineup-names {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.lineup-name {
-  font-size: 16px;
-}
-
-.lineup-tag {
-  font-size: 12px;
-  color: var(--ink-soft);
 }
 
 /* ── Add from group ──────────────────────────────────────────────── */

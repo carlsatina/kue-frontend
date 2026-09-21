@@ -413,6 +413,14 @@
           <input class="input" v-model.number="newFeeAmount" type="number" min="0" />
         </div>
         <label class="radio-row">
+          <input type="checkbox" v-model="newMatchByLevel" />
+          Match players of a similar level
+        </label>
+        <p class="field-hint">
+          Auto Q groups players close in skill. Turn off for mixed-level social play,
+          where it picks purely by who has waited longest.
+        </p>
+        <label class="radio-row">
           <input type="checkbox" v-model="newRequirePayment" />
           Require payment to join
         </label>
@@ -473,6 +481,7 @@ const newGameType = ref("doubles");
 const newSessionMode = ref("usual");
 const newFeeAmount = ref(100);
 const newRequirePayment = ref(false);
+const newMatchByLevel = ref(true);
 const newPaymentDeadline = ref("");
 const newRegularJoinLimit = ref(0);
 const newJoinerLimit = ref(0);
@@ -569,6 +578,7 @@ function openCreateSession() {
   newSessionMode.value = "usual";
   newFeeAmount.value = 100;
   newRequirePayment.value = false;
+  newMatchByLevel.value = true;
   newPaymentDeadline.value = "";
   newRegularJoinLimit.value = 0;
   newJoinerLimit.value = 0;
@@ -832,6 +842,7 @@ async function submitCreateSession() {
       feeMode: "flat",
       feeAmount: Number(newFeeAmount.value),
       requirePaymentToJoin: Boolean(newRequirePayment.value),
+      matchByLevel: Boolean(newMatchByLevel.value),
       paymentDeadline: newPaymentDeadline.value ? new Date(newPaymentDeadline.value).toISOString() : null,
       regularJoinLimit: Math.max(0, Number(newRegularJoinLimit.value) || 0),
       newJoinerLimit: Math.max(0, Number(newJoinerLimit.value) || 0),

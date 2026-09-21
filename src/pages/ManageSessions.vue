@@ -168,6 +168,14 @@
           <input class="input" v-model.number="editFeeAmount" type="number" min="0" />
         </div>
         <label class="radio-row">
+          <input type="checkbox" v-model="editMatchByLevel" />
+          Match players of a similar level
+        </label>
+        <p class="field-hint">
+          Auto Q groups players close in skill. Turn off for mixed-level social play,
+          where it picks purely by who has waited longest.
+        </p>
+        <label class="radio-row">
           <input type="checkbox" v-model="editRequirePayment" />
           Require payment to join
         </label>
@@ -273,6 +281,7 @@ const editGameType = ref("doubles");
 const editMode = ref("usual");
 const editFeeAmount = ref(0);
 const editRequirePayment = ref(false);
+const editMatchByLevel = ref(true);
 const editPaymentDeadline = ref("");
 const editRegularLimit = ref(0);
 const editJoinerLimit = ref(0);
@@ -310,6 +319,8 @@ function openEdit(s) {
   editMode.value = s.mode || "usual";
   editFeeAmount.value = Number(s.feeAmount || 0);
   editRequirePayment.value = Boolean(s.requirePaymentToJoin);
+  // Sessions created before this setting existed read as true, matching the column default.
+  editMatchByLevel.value = s.matchByLevel !== false;
   editPaymentDeadline.value = toLocalInput(s.paymentDeadline);
   editRegularLimit.value = Number(s.regularJoinLimit || 0);
   editJoinerLimit.value = Number(s.newJoinerLimit || 0);
@@ -337,6 +348,7 @@ async function saveEdit() {
       // The server rejects open play on a tournament session.
       feeAmount: Number(editFeeAmount.value || 0),
       requirePaymentToJoin: Boolean(editRequirePayment.value),
+      matchByLevel: Boolean(editMatchByLevel.value),
       paymentDeadline: editPaymentDeadline.value ? new Date(editPaymentDeadline.value).toISOString() : null,
       regularJoinLimit: Math.max(0, Number(editRegularLimit.value) || 0),
       newJoinerLimit: Math.max(0, Number(editJoinerLimit.value) || 0),
