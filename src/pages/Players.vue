@@ -127,6 +127,24 @@
             </button>
           </div>
           <p v-if="autoQueueHint" class="auto-queue-hint">{{ autoQueueHint }}</p>
+
+          <!-- What Auto Q would pick, offered before it's asked for. -->
+          <div v-if="autoQueueProposal" class="next-up">
+            <div class="next-up-teams">
+              <span class="next-up-label">Next up</span>
+              <span class="next-up-names">
+                {{ autoQueueProposal.teamA.join(' + ') }}
+                <span class="next-up-vs">vs</span>
+                {{ autoQueueProposal.teamB.join(' + ') }}
+              </span>
+            </div>
+            <div class="next-up-actions">
+              <button class="button button-compact" :disabled="proposalSubmitting" @click="queueProposal">
+                {{ proposalSubmitting ? 'Adding…' : 'Queue it' }}
+              </button>
+              <button class="button ghost button-compact" :disabled="proposalSubmitting" @click="editProposal">Edit</button>
+            </div>
+          </div>
           <div v-if="queueError" class="notice">{{ queueError }}</div>
           <div v-if="removeError" class="notice">{{ removeError }}</div>
           <div v-if="presentError" class="notice">{{ presentError }}</div>
@@ -1840,6 +1858,61 @@ function pickBalancedGroup(candidates, needed) {
   return candidates.slice(0, needed);
 }
 
+// The players Auto Q would take right now: fairest first, narrowed to a similar
+// level, then split into sides. Shared by the button and the standing proposal
+// so the two can never show different answers.
+function computeAutoQueueOrder() {
+  const needed = selectionLimit.value;
+  if (idleCandidates.value.length < needed) return [];
+  const selected = pickBalancedGroup(idleCandidates.value, needed);
+  if (selected.length < needed) return [];
+  return sessionGameType.value === "doubles" && selected.length === 4
+    ? buildBalancedDoublesOrder(selected, recentPartnersMap.value)
+    : selected.map((candidate) => candidate.id);
+}
+
+// Surfaced before it's asked for, so ending a match and starting the next one
+// is a single tap rather than Auto Q followed by confirming the pairing.
+const autoQueueProposal = computed(() => {
+  if (!session.value || !sessionIsOpen.value || !canAutoQueue.value) return null;
+  if (isTournamentMode.value) return null;
+  const order = computeAutoQueueOrder();
+  if (!order.length) return null;
+  const name = (id) => playerMap.value.get(id)?.nickname || playerMap.value.get(id)?.fullName || "?";
+  const half = order.length / 2;
+  return {
+    order,
+    teamA: order.slice(0, half).map(name),
+    teamB: order.slice(half).map(name)
+  };
+});
+
+// Commit the proposal as shown, skipping the pairing modal — the sides are
+// already on screen, so confirming them again buys nothing.
+async function queueProposal() {
+  const proposal = autoQueueProposal.value;
+  if (!proposal || proposalSubmitting.value) return;
+  proposalSubmitting.value = true;
+  queueError.value = "";
+  try {
+    await attemptQueue(proposal.order);
+  } catch (err) {
+    queueError.value = err.message || "Unable to add to queue";
+  } finally {
+    proposalSubmitting.value = false;
+  }
+}
+
+// Same four, but open the pairing modal to rearrange the sides first.
+function editProposal() {
+  const proposal = autoQueueProposal.value;
+  if (!proposal) return;
+  selectedIds.value = proposal.order.slice();
+  openPairingModal();
+}
+
+const proposalSubmitting = ref(false);
+
 async function autoQueueIdle() {
   if (!session.value || !sessionIsOpen.value) {
     queueError.value = "Session is not open.";
@@ -1853,12 +1926,11 @@ async function autoQueueIdle() {
     queueError.value = `Need ${needed} idle players to auto queue.`;
     return;
   }
-  // Fairest first, then narrowed to players of a similar level.
-  const selected = pickBalancedGroup(idleCandidates.value, needed);
-  const order =
-    sessionGameType.value === "doubles" && selected.length === 4
-      ? buildBalancedDoublesOrder(selected, recentPartnersMap.value)
-      : selected.map((candidate) => candidate.id);
+  const order = computeAutoQueueOrder();
+  if (!order.length) {
+    queueError.value = `Need ${needed} idle players to auto queue.`;
+    return;
+  }
   try {
     selectedIds.value = order;
     await addToQueue();
@@ -3208,6 +3280,46 @@ onUnmounted(() => {
 
 .group-picker-search {
   margin-bottom: 10px;
+}
+
+.next-up {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.next-up-teams {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.next-up-label {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.next-up-names {
+  font-size: 16px;
+}
+
+.next-up-vs {
+  color: var(--ink-soft);
+  font-size: 13px;
+  padding: 0 4px;
+}
+
+.next-up-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .auto-queue-hint {
