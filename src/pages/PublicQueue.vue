@@ -33,6 +33,7 @@
             >
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
             </button>
+            <span v-if="freshnessLabel" class="freshness" aria-live="polite">{{ freshnessLabel }}</span>
           </div>
         </div>
         <div class="pq-hero-actions">
@@ -276,6 +277,7 @@ import { api } from "../api.js";
 import { useRoute } from "vue-router";
 import CourtFloor from "../components/CourtFloor.vue";
 import { formatSessionSchedule, formatSessionLocation } from "../utils/sessionSchedule.js";
+import { formatUpdatedAgo } from "../utils/freshness.js";
 
 const route = useRoute();
 const data = ref({});
@@ -292,6 +294,14 @@ const startY = ref(0);
 const isPulling = ref(false);
 const refreshing = ref(false);
 const nowTick = ref(Date.now());
+const lastUpdatedAt = ref(null);
+// Separate from `refreshing`, which also disables the button and drives the
+// pull-to-refresh indicator; a background poll should do neither.
+const silentRefreshing = ref(false);
+
+const freshnessLabel = computed(() =>
+  silentRefreshing.value ? "Updating…" : formatUpdatedAgo(lastUpdatedAt.value, nowTick.value)
+);
 let timerId = null;
 let refreshTimerId = null;
 const REFRESH_INTERVAL_MS = 10000; // re-fetch live data every 10s
@@ -693,6 +703,7 @@ function setPageTitle(name) {
 
 async function load({ silent = false } = {}) {
   const reqOptions = silent ? { showLoading: false } : undefined;
+  if (silent) silentRefreshing.value = true;
   try {
     const result = await api.publicQueue(route.params.token, reqOptions);
     data.value = result;
@@ -720,6 +731,9 @@ async function load({ silent = false } = {}) {
       totalPlayers.value = 0;
     }
   }
+
+  lastUpdatedAt.value = Date.now();
+  silentRefreshing.value = false;
 }
 
 async function manualRefresh() {
@@ -1795,5 +1809,11 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.freshness {
+  font-size: 12px;
+  color: var(--ink-soft);
+  white-space: nowrap;
 }
 </style>

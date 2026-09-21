@@ -24,6 +24,7 @@
         >
           <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
         </button>
+        <span v-if="session && freshnessLabel" class="freshness" aria-live="polite">{{ freshnessLabel }}</span>
       </div>
       <div v-if="session" class="fees-header-right">
         <div class="fees-summary-chips">
@@ -250,6 +251,7 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { formatUpdatedAgo } from "../utils/freshness.js";
 import { api, withLoadingScope } from "../api.js";
 import { track } from "../utils/analytics.js";
 import { selectedSessionId, setSelectedSessionId } from "../state/sessionStore.js";
@@ -285,6 +287,17 @@ const showInfo = ref(false);
 const infoCopied = ref(false);
 let infoCopyTimer = null;
 const refreshing = ref(false);
+const lastUpdatedAt = ref(null);
+// Separate from `refreshing`, which disables the button and drives the
+// pull-to-refresh indicator; a background poll should do neither.
+const silentRefreshing = ref(false);
+const freshnessTick = ref(Date.now());
+let freshnessTimerId = null;
+
+const freshnessLabel = computed(() =>
+  silentRefreshing.value ? "Updating…" : formatUpdatedAgo(lastUpdatedAt.value, freshnessTick.value)
+);
+
 const startY = ref(0);
 const isPulling = ref(false);
 
@@ -347,6 +360,7 @@ function load(opts = {}) {
 
 async function loadImpl({ silent = false } = {}) {
   const reqOptions = silent ? { showLoading: false } : undefined;
+  if (silent) silentRefreshing.value = true;
   try {
     let currentSession = null;
     if (selectedSessionId.value) {
@@ -369,6 +383,9 @@ async function loadImpl({ silent = false } = {}) {
       error.value = err.message || "No active session";
       balances.value = [];
     }
+  } finally {
+    lastUpdatedAt.value = Date.now();
+    silentRefreshing.value = false;
   }
 }
 
@@ -677,6 +694,11 @@ const POLL_INTERVAL_MS = 15000; // silently re-fetch balances every 15s
 
 onMounted(() => {
   load();
+  // Coarser than the 1s clocks elsewhere: the label only needs to look alive,
+  // and this page renders a row per player.
+  freshnessTimerId = setInterval(() => {
+    freshnessTick.value = Date.now();
+  }, 5000);
   pollTimerId = setInterval(() => {
     // Skip while the admin is mid-action so data doesn't shift under them.
     if (!refreshing.value && !actionInProgress.value) {
@@ -687,6 +709,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (pollTimerId) clearInterval(pollTimerId);
+  if (freshnessTimerId) clearInterval(freshnessTimerId);
 });
 </script>
 
@@ -1077,5 +1100,11 @@ onUnmounted(() => {
 .proof-lightbox-hint {
   font-size: 11px;
   color: var(--ink-soft);
+}
+
+.freshness {
+  font-size: 12px;
+  color: var(--ink-soft);
+  white-space: nowrap;
 }
 </style>

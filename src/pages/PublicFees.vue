@@ -20,6 +20,7 @@
           >
             <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
           </button>
+          <span v-if="freshnessLabel" class="freshness" aria-live="polite">{{ freshnessLabel }}</span>
           <div class="pf-session">{{ data.session.name }}</div>
           <h2 class="pf-title">Session Fees</h2>
           <div v-if="sessionLocation || sessionSchedule" class="pf-meta">
@@ -169,6 +170,7 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from "vue";
+import { formatUpdatedAgo } from "../utils/freshness.js";
 import { useRoute } from "vue-router";
 import { api } from "../api.js";
 import { formatSessionSchedule, formatSessionLocation } from "../utils/sessionSchedule.js";
@@ -179,6 +181,17 @@ const sessionLocation = computed(() => formatSessionLocation(data.value?.session
 const sessionSchedule = computed(() => formatSessionSchedule(data.value?.session));
 const loading = ref(true);
 const refreshing = ref(false);
+const lastUpdatedAt = ref(null);
+// Separate from `refreshing`, which disables the button and drives the
+// pull-to-refresh indicator; a background poll should do neither.
+const silentRefreshing = ref(false);
+const freshnessTick = ref(Date.now());
+let freshnessTimerId = null;
+
+const freshnessLabel = computed(() =>
+  silentRefreshing.value ? "Updating…" : formatUpdatedAgo(lastUpdatedAt.value, freshnessTick.value)
+);
+
 const startY = ref(0);
 const isPulling = ref(false);
 const error = ref("");
@@ -306,6 +319,7 @@ function formatDate(iso) {
 }
 
 async function load({ silent = false } = {}) {
+  if (silent) silentRefreshing.value = true;
   try {
     const result = await api.publicFeesSession(route.params.token, silent ? { showLoading: false } : undefined);
     data.value = result;
@@ -314,6 +328,8 @@ async function load({ silent = false } = {}) {
     if (!silent) error.value = err.message || "Unable to load";
   } finally {
     loading.value = false;
+    lastUpdatedAt.value = Date.now();
+    silentRefreshing.value = false;
   }
 }
 
@@ -400,6 +416,9 @@ const POLL_INTERVAL_MS = 15000; // silently re-fetch fees every 15s
 
 onMounted(() => {
   load();
+  freshnessTimerId = setInterval(() => {
+    freshnessTick.value = Date.now();
+  }, 5000);
   pollTimerId = setInterval(() => {
     // Don't refresh under the player while they're submitting in the modal.
     if (!refreshing.value && !submitting.value && !selected.value) {
@@ -410,6 +429,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (pollTimerId) clearInterval(pollTimerId);
+  if (freshnessTimerId) clearInterval(freshnessTimerId);
 });
 </script>
 
@@ -796,5 +816,11 @@ onUnmounted(() => {
   max-height: 70vh;
   object-fit: contain;
   border-radius: 6px;
+}
+
+.freshness {
+  font-size: 12px;
+  color: var(--ink-soft);
+  white-space: nowrap;
 }
 </style>
