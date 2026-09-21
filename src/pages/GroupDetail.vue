@@ -252,8 +252,15 @@ const addSearchResults = computed(() => {
     .slice(0, 8);
 });
 
+// Indexed once per change instead of scanned per row: the roster template asks
+// about every member, so a linear find() here is O(members x session players)
+// on every render.
+const sessionStatusByPlayer = computed(
+  () => new Map(sessionPlayers.value.map((sp) => [sp.playerId, sp.status]))
+);
+
 function sessionStatusFor(playerId) {
-  return sessionPlayers.value.find((sp) => sp.playerId === playerId)?.status || null;
+  return sessionStatusByPlayer.value.get(playerId) || null;
 }
 
 function inSession(playerId) {

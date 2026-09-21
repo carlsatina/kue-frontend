@@ -86,7 +86,7 @@
   <div v-if="showAddCourt" class="modal-backdrop">
     <div class="modal-card">
       <h3>Add Court</h3>
-      <input class="input" v-model="newCourtName" placeholder="Court name" />
+      <input ref="newCourtNameInput" class="input" v-model="newCourtName" placeholder="Court name" />
       <input class="input" v-model="newCourtNotes" placeholder="Notes (optional)" />
       <div v-if="addCourtError" class="notice">{{ addCourtError }}</div>
       <div class="grid two">
@@ -159,7 +159,7 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { useDashboard } from "../composables/useDashboard.js";
 import { formatSessionSchedule, formatSessionLocation } from "../utils/sessionSchedule.js";
 import CourtFloor from "../components/CourtFloor.vue";
@@ -179,6 +179,14 @@ const {
   teamNames, elapsedTime,
   courtStatusLabel, courtDotClass,
 } = useDashboard();
+
+const newCourtNameInput = ref(null);
+
+// The modal is opened by flipping the flag inline, so focus hangs off the flag
+// rather than an open handler. nextTick waits for the field to exist.
+watch(showAddCourt, (open) => {
+  if (open) nextTick(() => newCourtNameInput.value?.focus());
+});
 
 const sessionLocation = computed(() => formatSessionLocation(session.value));
 const sessionSchedule = computed(() => formatSessionSchedule(session.value));

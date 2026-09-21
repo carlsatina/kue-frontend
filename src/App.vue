@@ -376,7 +376,7 @@
         <h3>Create Session</h3>
         <div class="field">
           <label class="field-label">Session name</label>
-          <input class="input" v-model="newSessionName" />
+          <input ref="newSessionNameInput" class="input" v-model="newSessionName" placeholder="e.g. Evening Open Play" />
         </div>
         <div class="field">
           <label class="field-label">Location</label>
@@ -406,29 +406,6 @@
               <option value="usual">Open Play</option>
               <option value="tournament">Tournament</option>
             </select>
-          </div>
-        </div>
-        <div v-if="newSessionMode !== 'tournament'" class="field-grid two">
-          <div class="field">
-            <label class="field-label">Queue style</label>
-            <select class="input" v-model="newQueueMode">
-              <option value="pairs">Fixed pairs</option>
-              <option value="open_play">Open play</option>
-            </select>
-            <p class="field-hint">
-              {{ newQueueMode === 'open_play'
-                ? 'Players line up one racket at a time; a free court takes the front of the line.'
-                : 'Players queue as a ready-made side.' }}
-            </p>
-          </div>
-          <div v-if="newQueueMode === 'open_play'" class="field">
-            <label class="field-label">Pairing</label>
-            <select class="input" v-model="newPairingStrategy">
-              <option value="arrival">Lineup order</option>
-              <option value="balanced">Balance skill</option>
-              <option value="avoid_repeat">Avoid repeat partners</option>
-            </select>
-            <p class="field-hint">How the four called players are split into teams.</p>
           </div>
         </div>
         <div class="field">
@@ -468,7 +445,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { api, isReadingFromBackend } from "./api.js";
 import { track } from "./utils/analytics.js";
@@ -487,14 +464,13 @@ import GameLoadingModal from "./components/GameLoadingModal.vue";
 
 // Create session modal state
 const showCreateSession = ref(false);
-const newSessionName = ref("Evening Open Play");
+const newSessionName = ref("");
+const newSessionNameInput = ref(null);
 const newLocation = ref("");
 const newStartsAt = ref("");
 const newEndsAt = ref("");
 const newGameType = ref("doubles");
 const newSessionMode = ref("usual");
-const newQueueMode = ref("pairs");
-const newPairingStrategy = ref("arrival");
 const newFeeAmount = ref(100);
 const newRequirePayment = ref(false);
 const newPaymentDeadline = ref("");
@@ -588,17 +564,17 @@ const navClass = computed(() => "nav-6");
 
 function openCreateSession() {
   createError.value = "";
-  newSessionName.value = "Evening Open Play";
+  newSessionName.value = "";
   newGameType.value = "doubles";
   newSessionMode.value = "usual";
-  newQueueMode.value = "pairs";
-  newPairingStrategy.value = "arrival";
   newFeeAmount.value = 100;
   newRequirePayment.value = false;
   newPaymentDeadline.value = "";
   newRegularJoinLimit.value = 0;
   newJoinerLimit.value = 0;
   showCreateSession.value = true;
+  // Wait for the modal to render before the field exists to focus.
+  nextTick(() => newSessionNameInput.value?.focus());
 }
 
 function closeCreateSession() {
@@ -837,17 +813,22 @@ function handleKeydown(e) {
 
 async function submitCreateSession() {
   createError.value = "";
+  // The field starts empty now, so catch a blank name here rather than letting
+  // the server answer with a generic "Invalid input".
+  const name = newSessionName.value.trim();
+  if (!name) {
+    createError.value = "Session name is required.";
+    newSessionNameInput.value?.focus();
+    return;
+  }
   try {
     const created = await api.createSession({
-      name: newSessionName.value,
+      name,
       location: newLocation.value.trim() || undefined,
       startsAt: newStartsAt.value ? new Date(newStartsAt.value).toISOString() : undefined,
       endsAt: newEndsAt.value ? new Date(newEndsAt.value).toISOString() : undefined,
       gameType: newGameType.value,
       mode: newSessionMode.value,
-      // Open play and tournament are mutually exclusive on the server.
-      queueMode: newSessionMode.value === "tournament" ? "pairs" : newQueueMode.value,
-      pairingStrategy: newPairingStrategy.value,
       feeMode: "flat",
       feeAmount: Number(newFeeAmount.value),
       requirePaymentToJoin: Boolean(newRequirePayment.value),

@@ -29,9 +29,6 @@
         <div v-if="session" class="players-header">
           <span class="players-header-hint">Share with players to join this session</span>
           <div class="players-header-actions">
-            <button class="link-button" @click="openGroupPicker">
-              <span class="link-icon">👥</span> From Group
-            </button>
             <button class="link-button" :class="{ copied: joinLinkCopied }" @click="openJoinLink">
               <span class="link-icon">{{ joinLinkCopied ? "✓" : "🔗" }}</span> {{ joinLinkCopied ? "Link Copied!" : "Join Link" }}
             </button>
@@ -121,12 +118,18 @@
             <button class="button button-compact" :disabled="!canAdd" @click="addToQueue">
               {{ isOpenPlay ? 'Add to Lineup' : 'Add to Q' }}
             </button>
-            <button class="button secondary button-compact" :disabled="!canAutoQueue" @click="autoQueueIdle">Auto Q</button>
+            <button
+              class="button secondary button-compact"
+              :disabled="!canAutoQueue"
+              :title="autoQueueHint || 'Queue the longest-waiting players'"
+              @click="autoQueueIdle"
+            >Auto Q</button>
             <button v-if="showMarkPresent" class="button secondary button-compact" :disabled="selectedIds.length === 0 || !sessionIsOpen" @click="markPresent">✓ Present</button>
             <button v-if="selectedIds.length > 0" class="button ghost danger button-compact" @click="openRemoveConfirm" aria-label="Remove selected players">
               <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
             </button>
           </div>
+          <p v-if="autoQueueHint" class="auto-queue-hint">{{ autoQueueHint }}</p>
           <div v-if="queueError" class="notice">{{ queueError }}</div>
           <div v-if="removeError" class="notice">{{ removeError }}</div>
           <div v-if="presentError" class="notice">{{ presentError }}</div>
@@ -186,6 +189,13 @@
               </div>
               <button class="button button-compact" @click="addPlayer" :disabled="!sessionIsOpen">Add Player</button>
               <div v-if="addError" class="notice">{{ addError }}</div>
+              <!-- The other way into the same session: a whole group at once. -->
+              <div class="add-player-alt">
+                <span class="add-player-alt-label">or add several at once</span>
+                <button class="button ghost button-compact" :disabled="!sessionIsOpen" @click="openGroupPicker">
+                  <span class="link-icon">👥</span> From Group
+                </button>
+              </div>
             </div>
           </template>
         </div>
@@ -657,16 +667,29 @@
 
         <div v-if="groupPickerId" class="group-member-picker">
           <div class="group-picker-head">
-            <span class="subtitle">{{ groupPickerSelection.length }} selected</span>
+            <span class="subtitle">
+              {{ groupPickerSelection.length }} selected
+              <template v-if="groupSearch.trim()"> · {{ filteredGroupMembers.length }} shown</template>
+            </span>
             <button class="button ghost button-compact" @click="toggleGroupSelectAll">
-              {{ groupPickerSelection.length ? 'Clear' : 'Select all' }}
+              {{ groupPickerSelection.length ? 'Clear' : (groupSearch.trim() ? 'Select shown' : 'Select all') }}
             </button>
           </div>
+          <input
+            v-if="groupMembers.length > GROUP_SEARCH_THRESHOLD"
+            class="input group-picker-search"
+            v-model="groupSearch"
+            placeholder="Search this group…"
+            autocomplete="off"
+          />
           <p v-if="groupMembers.length === 0" class="subtitle">This group has no members yet.</p>
+          <p v-else-if="filteredGroupMembers.length === 0" class="subtitle">
+            No one in this group matches “{{ groupSearch.trim() }}”.
+          </p>
           <p v-else-if="groupPickerSelection.length === 0" class="subtitle">
             Tick the players joining this session.
           </p>
-          <label v-for="member in groupMembers" :key="member.id" class="group-picker-row">
+          <label v-for="member in filteredGroupMembers" :key="member.id" class="group-picker-row">
             <input type="checkbox" :value="member.playerId" v-model="groupPickerSelection" />
             <span class="group-picker-name">
               {{ member.player.nickname || member.player.fullName }}
@@ -733,7 +756,8 @@ let joinLinkCopyTimer = null;
 const historySearch = ref("");
 const showDisplayMenu = ref(false);
 const showJoinOrder = ref(false);
-const showAddPlayer = ref(true);
+// Collapsed by default — the roster is what the page is for; adding is occasional.
+const showAddPlayer = ref(false);
 const teamSearch = ref("");
 const displayMenuRef = ref(null);
 const sessionIsOpen = computed(() => session.value?.status === "open");
@@ -1014,14 +1038,24 @@ const idleCandidates = computed(() => {
         player: sp.player,
         skill: skillRank.get(sp.player?.skillLevel) ?? 2,
         idleMs,
-        idleSeconds: sp.lastPlayedAt ? Math.floor(idleMs / 1000) : Number.MAX_SAFE_INTEGER
+        idleSeconds: sp.lastPlayedAt ? Math.floor(idleMs / 1000) : Number.MAX_SAFE_INTEGER,
+        // Missing check-in time sorts last rather than jumping the queue.
+        checkedInMs: sp.checkedInAt ? new Date(sp.checkedInAt).getTime() : Number.MAX_SAFE_INTEGER,
+        gamesPlayed: sp.gamesPlayed || 0
       };
     })
+    // Fairness, in the order players actually argue about it: fewest games
+    // first, then whoever has been sitting out longest, then arrival order.
     .sort((a, b) => {
+      if (a.gamesPlayed !== b.gamesPlayed) return a.gamesPlayed - b.gamesPlayed;
       if (b.idleMs !== a.idleMs) return b.idleMs - a.idleMs;
-      const aName = a.player.nickname || a.player.fullName || "";
-      const bName = b.player.nickname || b.player.fullName || "";
-      return aName.localeCompare(bName, undefined, { sensitivity: "base" });
+      // Everyone who hasn't played yet ties on games and idle time, so this
+      // tie-break decides who plays first all night. Whoever checked in
+      // earliest goes first; sorting by name quietly favoured the alphabet.
+      if (a.checkedInMs !== b.checkedInMs) return a.checkedInMs - b.checkedInMs;
+      // Checked in together (a whole group added at once): stable, but not
+      // alphabetical.
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
     });
 });
 // Map<playerId, Set<partnerId>> — last PARTNER_HISTORY_LIMIT partners per player
@@ -1060,6 +1094,41 @@ const recentPartnersMap = computed(() => {
 const canAutoQueue = computed(
   () => session.value && sessionIsOpen.value && idleCandidates.value.length >= selectionLimit.value
 );
+
+// Players who are free and would be picked, but are still inside the cooldown
+// after their last game. They're the usual reason Auto Q can't fire, and
+// without this the button just sits greyed out with no explanation.
+const coolingDown = computed(() => {
+  if (!session.value) return [];
+  const now = nowTick.value;
+  return sessionPlayers.value
+    .filter((sp) => sp?.player)
+    .filter((sp) => {
+      if (sp.status !== "checked_in" && sp.status !== "ready") return false;
+      if (playingIds.value.has(sp.playerId) || queuedIds.value.has(sp.playerId)) return false;
+      return sp.lastPlayedAt && now - new Date(sp.lastPlayedAt).getTime() < AUTO_QUEUE_COOLDOWN_MS;
+    })
+    .map((sp) => AUTO_QUEUE_COOLDOWN_MS - (now - new Date(sp.lastPlayedAt).getTime()))
+    .sort((a, b) => a - b);
+});
+
+function formatCountdown(ms) {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
+// Why Auto Q is unavailable, in the operator's terms. Empty when it's usable.
+const autoQueueHint = computed(() => {
+  if (!session.value || !sessionIsOpen.value || canAutoQueue.value) return "";
+  const short = selectionLimit.value - idleCandidates.value.length;
+  const waiting = coolingDown.value;
+  if (waiting.length) {
+    const soonest = formatCountdown(waiting[0]);
+    const n = Math.min(short, waiting.length);
+    return `Need ${short} more — ${n} cooling down, next free in ${soonest}`;
+  }
+  return `Need ${short} more idle player${short === 1 ? "" : "s"}`;
+});
 const canAddTeams = computed(
   () =>
     session.value &&
@@ -1521,37 +1590,6 @@ function teamKey(ids) {
   return ids.slice().sort().join("+");
 }
 
-function allSameIdle(candidates) {
-  if (!candidates.length) return false;
-  const baseline = candidates[0].idleSeconds ?? 0;
-  return candidates.every((candidate) => (candidate.idleSeconds ?? 0) === baseline);
-}
-
-function pickIdleSelection(candidates, needed) {
-  if (candidates.length < needed) return [];
-  if (needed !== 4) return candidates.slice(0, needed);
-  const top = candidates.slice(0, needed);
-  if (!allSameIdle(top)) return top;
-  const topIdle = top[0]?.idleSeconds ?? 0;
-  let best = null;
-  let bestRange = Number.POSITIVE_INFINITY;
-  let bestMinIdle = Number.NEGATIVE_INFINITY;
-  for (let i = 0; i <= candidates.length - needed; i += 1) {
-    const window = candidates.slice(i, i + needed);
-    const maxIdle = window[0].idleSeconds ?? 0;
-    if (maxIdle !== topIdle) continue;
-    const minIdle = window[window.length - 1].idleSeconds ?? 0;
-    const range = maxIdle - minIdle;
-    if (range === 0) continue;
-    if (range < bestRange || (range === bestRange && minIdle > bestMinIdle)) {
-      best = window;
-      bestRange = range;
-      bestMinIdle = minIdle;
-    }
-  }
-  return best || top;
-}
-
 function buildBalancedDoublesOrder(candidates, partnerMap = new Map()) {
   if (candidates.length !== 4) return candidates.map((candidate) => candidate.id);
   const ids = candidates.map((candidate) => candidate.id);
@@ -1697,6 +1735,18 @@ const groupsLoading = ref(false);
 const groupPickerId = ref("");
 const groupMembers = ref([]);
 const groupPickerSelection = ref([]);
+const groupSearch = ref("");
+// Below this, the list is short enough to read at a glance and the search box
+// is just clutter.
+const GROUP_SEARCH_THRESHOLD = 8;
+
+const filteredGroupMembers = computed(() => {
+  const term = groupSearch.value.trim().toLowerCase();
+  if (!term) return groupMembers.value;
+  return groupMembers.value.filter((m) =>
+    `${m.player?.fullName || ""} ${m.player?.nickname || ""}`.toLowerCase().includes(term)
+  );
+});
 const groupPickerSubmitting = ref(false);
 const groupPickerError = ref("");
 
@@ -1705,6 +1755,7 @@ async function openGroupPicker() {
   groupPickerId.value = "";
   groupMembers.value = [];
   groupPickerSelection.value = [];
+  groupSearch.value = "";
   showGroupPicker.value = true;
   groupsLoading.value = true;
   try {
@@ -1725,6 +1776,7 @@ async function loadGroupMembers() {
   groupPickerError.value = "";
   groupMembers.value = [];
   groupPickerSelection.value = [];
+  groupSearch.value = "";
   if (!groupPickerId.value) return;
   try {
     const group = await api.group(groupPickerId.value);
@@ -1743,8 +1795,9 @@ function toggleGroupSelectAll() {
     groupPickerSelection.value = [];
     return;
   }
-  // Skip anyone already in the session — they don't need adding again.
-  groupPickerSelection.value = groupMembers.value
+  // Skip anyone already in the session — they don't need adding again. With a
+  // search active this ticks what's on screen, which is what the button reads.
+  groupPickerSelection.value = filteredGroupMembers.value
     .map((m) => m.playerId)
     .filter((playerId) => !activeSessionPlayerIds.value.has(playerId));
 }
@@ -1896,11 +1949,8 @@ async function autoQueueIdle() {
     queueError.value = `Need ${needed} idle players to auto queue.`;
     return;
   }
-  const selected = pickIdleSelection(idleCandidates.value, needed);
-  if (selected.length < needed) {
-    queueError.value = "Idle times are identical for available players. Select manually or wait for variation.";
-    return;
-  }
+  // idleCandidates is already in fair order, so the front of it is the answer.
+  const selected = idleCandidates.value.slice(0, needed);
   const order =
     sessionGameType.value === "doubles" && selected.length === 4
       ? buildBalancedDoublesOrder(selected, recentPartnersMap.value)
@@ -3250,6 +3300,29 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.group-picker-search {
+  margin-bottom: 10px;
+}
+
+.auto-queue-hint {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.add-player-alt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.add-player-alt-label {
+  font-size: 13px;
+  color: var(--ink-soft);
 }
 
 /* On wider screens, lay out the form horizontally */
